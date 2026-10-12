@@ -50,7 +50,7 @@ export const FOG = {
 
 export const TREES = {
   count: 430,
-  clearingRadius: 10.5,
+  clearingRadius: 13,
   spawnRadius: 95,
   minSpacing: 3.4,
   viewWedge: 38, // degrees either side of the Matterhorn direction kept mostly open
@@ -121,6 +121,22 @@ export const CAMERA = {
   fov: 50,
   near: 0.08,
   far: 2600,
+}
+
+export const NET = {
+  channel: 'bonfire-main',
+  maxPlayers: 50,
+  /**
+   * Project-wide Realtime message budget per second. Supabase Free allows 100/s and every
+   * broadcast is delivered to each listener, so send rates adapt to stay under this.
+   * Raise to ~400 on the Pro plan (500/s).
+   */
+  messageBudget: 60,
+  maxSendHz: 10,
+  minSendHz: 0.5,
+  staleAfter: 10_000, // ms without updates before a moving player is considered stopped
+  interpolationMin: 100, // ms of buffered delay for smooth remote movement
+  interpolationMax: 2500,
 }
 
 export const RENDER = {

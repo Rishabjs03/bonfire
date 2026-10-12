@@ -1,13 +1,20 @@
 import { Canvas } from '@react-three/fiber'
 import { CAMERA, POST, RENDER } from './config'
+import { useMultiplayer } from './net/useMultiplayer'
 import { useKeyboardControls } from './player/useControls'
 import { DISTANT_LAYER, FAR_LAYER } from './scene/Trees'
 import { World } from './scene/World'
+import { useGameStore } from './store/gameStore'
+import { FullScreen } from './ui/FullScreen'
 import { HUD } from './ui/HUD'
+import { JoinScreen } from './ui/JoinScreen'
 import { labelLayerRef } from './ui/labelLayer'
+import { OnlineCounter } from './ui/OnlineCounter'
 
 export default function App() {
   useKeyboardControls()
+  useMultiplayer()
+  const phase = useGameStore((s) => s.phase)
 
   return (
     <div className="relative h-full w-full">
@@ -27,7 +34,14 @@ export default function App() {
         <World />
       </Canvas>
       <div ref={labelLayerRef} className="pointer-events-none absolute inset-0 overflow-hidden" />
-      <HUD />
+      {phase === 'joined' && (
+        <>
+          <HUD />
+          <OnlineCounter />
+        </>
+      )}
+      {phase === 'lobby' && <JoinScreen />}
+      {phase === 'full' && <FullScreen />}
     </div>
   )
 }

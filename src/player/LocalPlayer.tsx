@@ -1,31 +1,17 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group } from 'three'
-import { PLAYER, SITTING, VIEW_DIR } from '../config'
+import { PLAYER, SITTING } from '../config'
 import { clamp, damp, lerpAngle } from '../lib/math'
 import { heightAt } from '../lib/terrain'
 import { localRuntime, useGameStore } from '../store/gameStore'
 import { Character } from './Character'
 import { createMotionState } from './motion'
+import { spawnLocalPlayer } from './spawn'
 import { resolveCollisions } from './collision'
 import { isSlowHeld, readMoveInput } from './useControls'
 
 const input = { x: 0, y: 0 }
-
-/** Place the player somewhere around the clearing, facing the fire. */
-function spawn() {
-  // Opposite the Matterhorn (±35°), so the first view is the fire with the peak behind it.
-  const angle = Math.atan2(-VIEW_DIR.x, -VIEW_DIR.z) + (Math.random() - 0.5) * 0.5
-  const r = PLAYER.spawnMinRadius + Math.random() * (PLAYER.spawnMaxRadius - PLAYER.spawnMinRadius)
-  const rt = localRuntime
-  rt.position.set(Math.sin(angle) * r, 0, Math.cos(angle) * r)
-  for (let i = 0; i < 4; i++) resolveCollisions(rt.position, PLAYER.radius, 1)
-  rt.position.y = heightAt(rt.position.x, rt.position.z)
-  rt.velocity.set(0, 0, 0)
-  rt.rotY = Math.atan2(-rt.position.x, -rt.position.z)
-  rt.cameraYaw = rt.rotY
-  rt.spawned = true
-}
 
 export function LocalPlayer() {
   const group = useRef<Group>(null!)
@@ -34,10 +20,11 @@ export function LocalPlayer() {
   const name = useGameStore((s) => s.name)
   const colors = useGameStore((s) => s.colors)
 
-  if (!localRuntime.spawned) spawn()
+  if (!localRuntime.spawned) spawnLocalPlayer()
 
   useFrame((_, rawDt) => {
-    const dt = Math.min(rawDt, 0.05)
+    // Generous clamp: slow machines still walk at real speed, tab switches don't teleport.
+    const dt = Math.min(rawDt, 0.1)
     const rt = localRuntime
     const pos = rt.position
     const vel = rt.velocity

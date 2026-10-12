@@ -10,12 +10,16 @@ import {
   RepeatWrapping,
   SRGBColorSpace,
   type Texture,
+  Vector3,
 } from 'three'
 import { TREES } from '../config'
 import { createFir, type FirGeometry } from '../lib/firTree'
 import { FOREST, type TreeInstance } from '../lib/forest'
 import { heightAt } from '../lib/terrain'
+import { localRuntime, useGameStore } from '../store/gameStore'
 import { ASSETS } from './assets'
+
+const ORIGIN = new Vector3()
 
 /** Heights of the pre-built tree variants; each tree uses the nearest and scales to fit. */
 const VARIANT_HEIGHTS = [3, 5.5, 9, 13, 17, 21]
@@ -25,13 +29,23 @@ export const FAR_LAYER = 1
 export const DISTANT_LAYER = 2
 type Tier = 'near' | 'far' | 'distant'
 
-const shared = { uTime: { value: 0 } }
+const shared = { uTime: { value: 0 }, uPlayerView: { value: new Vector3() } }
 
-/** Shader patches shared by foliage and bark: camera-near dithered fade. */
+/**
+ * Shader patch shared by foliage and bark: trees right next to the camera, or standing
+ * between the camera and the player, dissolve with an ordered dither (no sorting needed).
+ */
 const DITHER_FADE = /* glsl */ `
   {
     float camDist = length(vViewPosition);
     float keep = smoothstep(${TREES.cameraFadeNear.toFixed(2)}, ${TREES.cameraFadeFar.toFixed(2)}, camDist);
+    vec3 fragView = -vViewPosition;
+    if (-fragView.z < -uPlayerView.z - 0.8) {
+      vec2 a = fragView.xy / -fragView.z;
+      vec2 b = uPlayerView.xy / -uPlayerView.z;
+      vec2 d = (a - b) * vec2(1.0, 0.6); // taller than wide: keep the whole figure visible
+      keep = min(keep, mix(0.12, 1.0, smoothstep(0.1, 0.22, length(d))));
+    }
     if (keep < 0.999) {
       ivec2 p = ivec2(mod(gl_FragCoord.xy, 4.0));
       float bayer[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
@@ -53,6 +67,7 @@ function createFoliageMaterial(map: Texture, alphaMap: Texture) {
   })
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = shared.uTime
+    shader.uniforms.uPlayerView = shared.uPlayerView
     shader.vertexShader = shader.vertexShader
       .replace(
         'void main() {',
@@ -76,7 +91,7 @@ function createFoliageMaterial(map: Texture, alphaMap: Texture) {
         transformed.y += sin(uTime * 1.7 + phase + reach) * 0.006 * reach;`,
       )
     shader.fragmentShader = shader.fragmentShader
-      .replace('void main() {', 'varying float vSnow;\nvoid main() {')
+      .replace('void main() {', 'varying float vSnow;\nuniform vec3 uPlayerView;\nvoid main() {')
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${DITHER_FADE}`)
       .replace(
         '#include <map_fragment>',
@@ -99,10 +114,10 @@ function createFoliageMaterial(map: Texture, alphaMap: Texture) {
 function createBarkMaterial(map: Texture, normalMap: Texture) {
   const m = new MeshStandardMaterial({ map, normalMap, roughness: 0.95, metalness: 0, color: '#9a8f86' })
   m.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <clipping_planes_fragment>',
-      `#include <clipping_planes_fragment>\n${DITHER_FADE}`,
-    )
+    shader.uniforms.uPlayerView = shared.uPlayerView
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'uniform vec3 uPlayerView;\nvoid main() {')
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${DITHER_FADE}`)
   }
   return m
 }
@@ -200,8 +215,11 @@ export function Trees() {
     return out
   }, [])
 
-  useFrame(({ clock }) => {
+  useFrame(({ camera, clock }) => {
     shared.uTime.value = clock.elapsedTime
+    // Before joining there's no player to keep in view: aim at the fire instead.
+    const p = useGameStore.getState().phase === 'joined' ? localRuntime.position : ORIGIN
+    shared.uPlayerView.value.set(p.x, p.y + 1.0, p.z).applyMatrix4(camera.matrixWorldInverse)
   })
 
   return (

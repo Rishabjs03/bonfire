@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BufferGeometry, Color, Float32BufferAttribute, Group, MeshStandardMaterial, Vector3 } from 'three'
-import { TERRAIN } from '../config'
+import { FOG, TERRAIN } from '../config'
 import { SIMPLEX_3D } from '../lib/glsl'
 import { smoothstep } from '../lib/math'
 import { MOON_DIR } from './moon'
@@ -123,6 +123,7 @@ function createTerrainMaterial() {
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uHaze = { value: new Color(TERRAIN.haze) }
     shader.uniforms.uHazeDistance = { value: TERRAIN.hazeDistance * TERRAIN.scale }
+    shader.uniforms.uMist = { value: new Color(FOG.color) }
     shader.vertexShader = shader.vertexShader.replace(
       'void main() {',
       `attribute float aShadow;
@@ -141,6 +142,7 @@ function createTerrainMaterial() {
         varying vec3 vReal;
         varying vec3 vRealNormal;
         uniform vec3 uHaze;
+        uniform vec3 uMist;
         uniform float uHazeDistance;
         ${SIMPLEX_3D}
         void main() {`,
@@ -181,7 +183,10 @@ function createTerrainMaterial() {
         /* glsl */ `#include <dithering_fragment>
         float dist = length(vViewPosition);
         float haze = 1.0 - exp(-dist / uHazeDistance);
-        gl_FragColor.rgb = mix(gl_FragColor.rgb, uHaze, haze * 0.6);`,
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, uHaze, haze * 0.6);
+        // Nearby slopes dissolve into the forest mist, hiding where the local world takes over.
+        float near = 1.0 - smoothstep(${TERRAIN.holeRadius.toFixed(1)}, ${(TERRAIN.holeRadius + 1600).toFixed(1)}, length(vReal.xz));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, uMist, near * 0.97);`,
       )
   }
   return m

@@ -1,13 +1,31 @@
 import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Vector3 } from 'three'
-import { CAMERA } from '../config'
+import { Vector3, type Camera } from 'three'
+import { CAMERA, VIEW_DIR } from '../config'
 import { damp, smoothstep } from '../lib/math'
 import { heightAt } from '../lib/terrain'
-import { localRuntime } from '../store/gameStore'
+import { localRuntime, useGameStore } from '../store/gameStore'
 import { readOrbitInput } from './useControls'
 
 const DRAG_SENSITIVITY = 0.005
+const INTRO_BASE = Math.atan2(-VIEW_DIR.x, -VIEW_DIR.z)
+const introTarget = new Vector3()
+const introLook = new Vector3(VIEW_DIR.x * 7, 2.4, VIEW_DIR.z * 7)
+
+/** Behind the join screen: a slow drift around the fire, the Matterhorn beyond it. */
+function introShot(camera: Camera, t: number, dt: number, look: Vector3, initialized: boolean) {
+  const a = INTRO_BASE + Math.sin(t * 0.045) * 0.55
+  const r = 8.5 + Math.sin(t * 0.07) * 1.2
+  introTarget.set(Math.sin(a) * r, 0, Math.cos(a) * r)
+  introTarget.y = heightAt(introTarget.x, introTarget.z) + 1.9
+  if (!initialized) {
+    camera.position.copy(introTarget)
+    look.copy(introLook)
+  }
+  camera.position.lerp(introTarget, damp(1.5, dt))
+  look.lerp(introLook, damp(1.5, dt))
+  camera.lookAt(look)
+}
 const ORBIT_SPEED = 1.8
 
 /** Third-person follow camera. Drag (or Q/E) to orbit around the player. */
@@ -45,9 +63,14 @@ export function CameraRig() {
     }
   }, [gl])
 
-  useFrame(({ camera }, rawDt) => {
+  useFrame(({ camera, clock }, rawDt) => {
     const dt = Math.min(rawDt, 0.05)
     const rt = localRuntime
+    if (useGameStore.getState().phase !== 'joined') {
+      introShot(camera, clock.elapsedTime, dt, look.current, initialized.current)
+      initialized.current = true
+      return
+    }
     rt.cameraYaw += readOrbitInput() * ORBIT_SPEED * dt
 
     const p = rt.position

@@ -3,6 +3,8 @@ import { FOG } from '../config'
 import { enabled } from '../lib/debug'
 import { CameraRig } from '../player/CameraRig'
 import { LocalPlayer } from '../player/LocalPlayer'
+import { RemotePlayers } from '../player/RemotePlayer'
+import { useGameStore } from '../store/gameStore'
 import { AlpineTerrain } from './AlpineTerrain'
 import { Bonfire } from './Bonfire'
 import { Effects } from './Effects'
@@ -12,6 +14,7 @@ import { Snow } from './Snow'
 import { Trees } from './Trees'
 
 export function World() {
+  const joined = useGameStore((s) => s.phase === 'joined')
   return (
     <>
       <fogExp2 attach="fog" args={[FOG.color, FOG.density]} />
@@ -22,7 +25,8 @@ export function World() {
         {enabled('trees') && <Trees />}
         <Bonfire />
         {enabled('snow') && <Snow />}
-        <LocalPlayer />
+        {joined && <LocalPlayer />}
+        <RemotePlayers />
         <CameraRig />
         {enabled('post') && <Effects />}
       </Suspense>

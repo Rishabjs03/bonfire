@@ -28,9 +28,9 @@ function generateForest(): TreeInstance[] {
     const inWedge = facing > wedgeCos
     if (inWedge && rand() > 0.12) continue
 
-    // Trees nearer the clearing edge and in the wedge are younger and shorter.
-    const edge = Math.min(1, (r - TREES.clearingRadius) / 25)
-    let height = 8 + rand() * 9 + edge * 7
+    // Like a real forest edge: young, shorter trees at the clearing, old giants deeper in.
+    const edge = Math.min(1, (r - TREES.clearingRadius) / 22)
+    let height = 4.5 + rand() * 6 + edge * 12
     if (rand() < 0.16 || inWedge) height = 2.2 + rand() * 4.5
 
     const spacing = TREES.minSpacing * Math.max(0.55, height / 16)
