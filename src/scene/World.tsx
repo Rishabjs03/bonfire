@@ -11,7 +11,8 @@ import { Bonfire } from './Bonfire'
 import { Effects } from './Effects'
 import { Ground } from './Ground'
 import { Sky } from './Sky'
-import { Snow } from './Snow'
+import { Grass } from './Grass'
+import { Rocks } from './Rocks'
 import { Trees } from './Trees'
 
 export function World() {
@@ -20,12 +21,13 @@ export function World() {
     <>
       <fogExp2 attach="fog" args={[FOG.color, FOG.density]} />
       <Suspense fallback={null}>
-        <Sky />
+        {enabled('sky') && <Sky />}
         {enabled('terrain') && <AlpineTerrain />}
         <Ground />
         {enabled('trees') && <Trees />}
         <Bonfire />
-        {enabled('snow') && <Snow />}
+        {enabled('grass') && <Grass />}
+        {enabled('rocks') && <Rocks />}
         {joined && <LocalPlayer />}
         <RemotePlayers />
         <CameraRig />

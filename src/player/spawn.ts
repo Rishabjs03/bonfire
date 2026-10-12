@@ -1,4 +1,5 @@
-import { PLAYER, VIEW_DIR } from '../config'
+import { PLAYER } from '../config'
+import { VIEW_DIR } from '../world/directions'
 import { heightAt } from '../lib/terrain'
 import { localRuntime } from '../store/gameStore'
 import { resolveCollisions } from './collision'

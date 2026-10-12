@@ -1,6 +1,7 @@
 import type { Vector3 } from 'three'
 import { FIRE, WORLD } from '../config'
 import { FOREST, trunkRadius } from '../lib/forest'
+import { ROCKS } from '../lib/rocks'
 
 interface Circle {
   x: number
@@ -11,6 +12,7 @@ interface Circle {
 const OBSTACLES: Circle[] = [
   { x: 0, z: 0, r: FIRE.collisionRadius },
   ...FOREST.map((t) => ({ x: t.x, z: t.z, r: trunkRadius(t.height) * 1.6 })),
+  ...ROCKS.map((r) => ({ x: r.x, z: r.z, r: 0.55 * r.scale })),
 ]
 
 /** Push a circle at `pos` (xz plane) out of trunks and the fire, and softly back inside the world. */

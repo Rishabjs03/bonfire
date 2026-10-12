@@ -31,6 +31,7 @@ function createSmoke() {
       varying vec2 vUv;
       varying float vAge;
       varying float vSeed;
+      varying float vNear;
       void main() {
         float age = fract(uTime / ${LIFE.toFixed(1)} + aSeed.x);
         vAge = age;
@@ -40,6 +41,8 @@ function createSmoke() {
         center.z += cos(aSeed.y * 1.3 + age * 2.4) * age * 1.0;
         float size = (0.5 + age * 3.2) * aSeed.z;
         vec4 mv = viewMatrix * vec4(center, 1.0);
+        // puffs right in front of the lens would smear across the screen: fade them
+        vNear = smoothstep(1.2, 3.5, -mv.z);
         float rot = aSeed.y + age * 0.8;
         vec2 corner = mat2(cos(rot), -sin(rot), sin(rot), cos(rot)) * position.xy * size;
         mv.xy += corner;
@@ -52,6 +55,7 @@ function createSmoke() {
       varying vec2 vUv;
       varying float vAge;
       varying float vSeed;
+      varying float vNear;
       ${SIMPLEX_3D}
       void main() {
         vec2 p = vUv - 0.5;
@@ -59,11 +63,12 @@ function createSmoke() {
         float n = fbm3(vec3(p * 2.6, vSeed + uTime * 0.12));
         float puff = smoothstep(1.0, 0.25, r + n * 0.45);
         float life = smoothstep(0.0, 0.15, vAge) * (1.0 - smoothstep(0.45, 1.0, vAge));
-        float alpha = puff * life * 0.1;
+        float alpha = puff * life * 0.13 * vNear;
         if (alpha < 0.003) discard;
         // lit from below by the fire, fading into the cold night above
-        vec3 fireLit = vec3(1.0, 0.42, 0.14) * (1.0 - smoothstep(0.0, 0.3, vAge)) * uFire * 0.45;
-        vec3 col = vec3(0.035, 0.038, 0.045) + fireLit;
+        // daylight smoke: warm grey, lit by the low sun, a little fire glow at its root
+        vec3 fireLit = vec3(1.0, 0.42, 0.14) * (1.0 - smoothstep(0.0, 0.2, vAge)) * uFire * 0.25;
+        vec3 col = mix(vec3(0.42, 0.4, 0.4), vec3(0.62, 0.55, 0.48), vAge) + fireLit;
         gl_FragColor = vec4(col, alpha);
       }`,
     transparent: true,

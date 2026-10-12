@@ -1,107 +1,98 @@
 // All tunable values for the feel of Bonfire live here. Units are metres.
-
-/** Direction (xz, unit) from camp toward the Matterhorn: x = east, z = south. */
-const toMatterhorn = { x: -7550, z: 3270 }
-const len = Math.hypot(toMatterhorn.x, toMatterhorn.z)
-export const VIEW_DIR = { x: toMatterhorn.x / len, z: toMatterhorn.z / len }
+// The place itself (terrain, forest, sun direction) is real and baked: see scripts/build-terrain.mjs.
 
 export const WORLD = {
-  seed: 1337, // shared seed so every client sees the same forest
-  radius: 55, // soft boundary for players
+  seed: 1337,
+  radius: 55, // soft boundary for players around the fire
   boundaryPush: 6,
-  groundSize: 260,
-  groundSegments: 280,
-  groundBump: 0.35, // gentle snow undulation
-  viewSlopeStart: 16, // ground starts falling away toward the Matterhorn here
+  groundSize: 340, // local high-detail ground (the real terrain continues beyond)
+  groundSegments: 300,
+  firePitFlatten: 4.5, // ground is levelled within this radius of the fire
 }
+
+/**
+ * 'sunset': the evening sun slips through a notch in the western ridge onto the meadow;
+ *           the Matterhorn stands backlit against a golden sky.
+ * 'sunrise': the camp is still in cool shade while the first sun turns the Matterhorn's
+ *           east face gold (the famous alpenglow view from Riffelalp).
+ */
+export const TIME_OF_DAY: 'sunset' | 'sunrise' =
+  typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('time') === 'sunrise' ? 'sunrise' : 'sunset'
 
 export const SKY = {
-  hdr: '/assets/sky/night_2k.hdr',
-  backgroundIntensity: 0.05,
-  environmentIntensity: 0.16,
-  hdrMoonAzimuth: 35.2, // degrees, where the moon glow sits in the HDRI (three's equirect angle)
-  moonAzimuthOffset: 13, // degrees from the Matterhorn direction
-  moonElevation: 17.6, // matches the HDRI
-  moonSize: 1.2, // angular size multiplier (1 = real 0.5°)
-  starCount: 4500,
+  hdr: '/assets/sky/golden_2k.hdr', // syferfontein_6d_clear_puresky (Poly Haven, CC0): sun 6.3° up
+  hdrSunAzimuth: 35.2, // degrees, three's equirect angle of the sun in the HDRI
+  backgroundIntensity: 1.0,
+  environmentIntensity: 0.55,
 }
 
-export const MOONLIGHT = {
-  color: '#9db4ff',
-  intensity: 0.42,
-  shadowMapSize: 2048,
-  shadowRange: 38, // half-size of the shadow frustum around the player
+export const SUN = {
+  color: '#ffb874', // low sun through ~30 airmasses: warm, golden
+  intensity: 3.2,
+  shadowDepth: 600, // long low-sun shadows: casters far toward the sun count
 }
 
 export const TERRAIN = {
-  url: '/assets/terrain/zermatt.bin',
-  scale: 1 / 10, // distant terrain is drawn as a scaled backdrop around the camera
-  holeRadius: 1350, // metres of real terrain around camp that are not drawn (local world covers it)
-  snowLine: 2350,
-  treeLine: 2250,
-  haze: '#121a2b',
-  hazeDistance: 16000,
+  scale: 1 / 10, // drawn as a camera-centred scaled copy (exact angles, no depth fighting)
+  hazeDistance: 24000, // metres for ~63% aerial perspective (clear alpine air)
+  hazeColor: '#a9b9d0', // bluish distance haze
+  hazeSunColor: '#f1b98a', // warm haze toward the sun
+  delight: 0.55, // how much of the orthophoto's baked midday shading to remove
 }
 
 export const FOG = {
-  color: '#070a11',
-  density: 0.024,
+  color: '#b3c0d2',
+  density: 0.0016, // gentle haze in the local scene
 }
 
 export const TREES = {
-  count: 430,
-  clearingRadius: 13,
-  spawnRadius: 95,
-  minSpacing: 3.4,
-  viewWedge: 38, // degrees either side of the Matterhorn direction kept mostly open
-  shadowCasterRadius: 24, // trees within this distance of the fire cast fire shadows
-  moonShadowRadius: 50, // trees beyond this never cast shadows
+  clearingRadius: 9, // no trees this close to the fire
   cameraFadeNear: 1.2,
   cameraFadeFar: 3.2,
+  larchShare: 0.58, // the rest are Swiss stone pines (Arven)
 }
 
-export const SNOW = {
-  count: 2600,
-  area: 36,
-  height: 18,
-  fallSpeed: 0.75,
-  drift: 0.3,
+export const GRASS = {
+  radius: 26, // default; the quality level sets count and radius
+  height: 0.38,
+  width: 0.032,
+  flowerShare: 0.035,
 }
 
 export const FIRE = {
-  lightColor: '#ff7b2e',
-  lightIntensity: 9, // candela, physically based
+  lightColor: '#ff8a3d',
+  lightIntensity: 7, // candela; modest against the evening sun
   lightHeight: 0.75,
   flickerAmount: 0.22,
   flickerSpeed: 1.0,
   pitScale: 1.55,
   collisionRadius: 1.45,
-  sparkCount: 90,
+  sparkCount: 70,
   smokeCount: 26,
-  hazeStrength: 0.32, // light scattering in the air around the fire
+  hazeStrength: 0.08, // light scattering in the air: subtle in daylight
 }
 
 export const POST = {
-  bloomIntensity: 0.55,
-  bloomThreshold: 1.0,
-  bloomSmoothing: 0.4,
-  exposure: 1.35,
-  aoRadius: 1.2,
-  aoIntensity: 2.2,
-  grain: 0.045,
-  vignetteDarkness: 0.62,
-  vignetteOffset: 0.28,
+  bloomIntensity: 0.45,
+  bloomThreshold: 2.2,
+  bloomSmoothing: 0.5,
+  exposure: 0.9,
+  aoRadius: 1.4,
+  aoIntensity: 2.0,
+  grain: 0.03,
+  vignetteDarkness: 0.45,
+  vignetteOffset: 0.3,
 }
 
 export const PLAYER = {
-  walkSpeed: 1.55, // m/s, a slow wander through snow
-  slowSpeed: 0.8,
+  walkSpeed: 1.45, // m/s, a slow wander through the meadow
+  slowSpeed: 0.75,
   acceleration: 6,
   deceleration: 6,
   turnSpeed: 7,
   radius: 0.32,
-  spawnMinRadius: 7,
-  spawnMaxRadius: 9.5,
+  spawnMinRadius: 6.5,
+  spawnMaxRadius: 8.5,
 }
 
 export const SITTING = {
@@ -116,11 +107,11 @@ export const CAMERA = {
   nearFireHeight: 1.35,
   nearFireRadius: 4.5,
   followLerp: 4,
-  lookHeight: 1.35,
-  shoulderOffset: 0.6, // over-the-shoulder framing so the character doesn't block the fire
+  lookHeight: 1.45,
+  shoulderOffset: 0.6, // over-the-shoulder framing so the character doesn't block the view
   fov: 50,
   near: 0.08,
-  far: 2600,
+  far: 2800,
 }
 
 export const NET = {
@@ -139,7 +130,3 @@ export const NET = {
   interpolationMax: 2500,
 }
 
-export const RENDER = {
-  maxDpr: 1.5,
-  msaa: 4,
-}

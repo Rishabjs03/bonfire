@@ -1,12 +1,12 @@
-import { useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { PerformanceMonitor } from '@react-three/drei'
-import { CAMERA, POST, RENDER } from './config'
+import { CAMERA, POST } from './config'
 import { useMultiplayer } from './net/useMultiplayer'
 import { useKeyboardControls } from './player/useControls'
-import { DISTANT_LAYER, FAR_LAYER } from './scene/Trees'
+import { DISTANT_LAYER, FAR_LAYER } from './scene/layers'
 import { World } from './scene/World'
 import { useGameStore } from './store/gameStore'
+import { useQuality } from './store/quality'
 import { ChatInput } from './ui/ChatInput'
 import { FullScreen } from './ui/FullScreen'
 import { HUD } from './ui/HUD'
@@ -23,8 +23,10 @@ export default function App() {
   useMultiplayer()
   useHotkeys()
   const phase = useGameStore((s) => s.phase)
-  // Drop resolution when the frame rate struggles; restore it when there's headroom.
-  const [dpr, setDpr] = useState(RENDER.maxDpr)
+  // Quality starts from a GPU guess and steps down while the frame rate struggles.
+  const dpr = useQuality((q) => Math.min(q.settings.dpr, window.devicePixelRatio || 1))
+  const stepDown = useQuality((q) => q.stepDown)
+  const stepUp = useQuality((q) => q.stepUp)
 
   return (
     <div className="relative h-full w-full">
@@ -42,10 +44,11 @@ export default function App() {
         }}
       >
         <PerformanceMonitor
-          onDecline={() => setDpr(1)}
-          onIncline={() => setDpr(RENDER.maxDpr)}
+          bounds={(refresh) => [Math.min(45, refresh * 0.72), refresh * 0.97]}
+          onDecline={stepDown}
+          onIncline={stepUp}
           flipflops={3}
-          onFallback={() => setDpr(1)}
+          onFallback={stepDown}
         >
           <World />
         </PerformanceMonitor>
@@ -62,6 +65,9 @@ export default function App() {
       {phase === 'lobby' && <JoinScreen />}
       {phase === 'full' && <FullScreen />}
       <MuteButton />
+      <p className="pointer-events-none absolute bottom-1.5 right-3 z-10 font-serif text-[10px] text-stone-300/40">
+        terrain &amp; aerial imagery © swisstopo
+      </p>
     </div>
   )
 }

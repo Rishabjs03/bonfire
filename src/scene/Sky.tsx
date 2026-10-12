@@ -1,175 +1,94 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Environment, useTexture } from '@react-three/drei'
-import {
-  AdditiveBlending,
-  BufferGeometry,
-  DirectionalLight,
-  Euler,
-  Float32BufferAttribute,
-  Group,
-  Object3D,
-  ShaderMaterial,
-  SRGBColorSpace,
-} from 'three'
-import { MOONLIGHT, SKY } from '../config'
-import { createRng } from '../lib/random'
+import { Environment } from '@react-three/drei'
+import { DirectionalLight, Euler, Object3D } from 'three'
+import { SKY, SUN } from '../config'
 import { localRuntime } from '../store/gameStore'
-import { ASSETS } from './assets'
-import { MOON_DIR, SKY_ROTATION_Y } from './moon'
-import { FAR_LAYER } from './Trees'
+import { useQuality } from '../store/quality'
+import { SKY_ROTATION_Y, SUN_DIR } from '../world/directions'
+import { world } from '../world/worldData'
+import { FAR_LAYER } from './layers'
 
-const SKY_RADIUS = 2400
 const skyRotation = new Euler(0, SKY_ROTATION_Y, 0)
 
-/** Crisp procedural stars on top of the (soft) HDRI sky. */
-function createStars() {
-  const rand = createRng(424242)
-  const pos: number[] = []
-  const col: number[] = []
-  const size: number[] = []
-  for (let i = 0; i < SKY.starCount; i++) {
-    // uniform on the sphere, slightly below the horizon too (hidden by mountains)
-    const y = rand() * 1.1 - 0.1
-    const a = rand() * Math.PI * 2
-    const r = Math.sqrt(1 - y * y)
-    pos.push(Math.cos(a) * r * SKY_RADIUS, y * SKY_RADIUS, Math.sin(a) * r * SKY_RADIUS)
-    // magnitude-like distribution: many faint, few bright
-    const m = Math.pow(rand(), 7)
-    const temp = rand()
-    const c = temp < 0.15 ? [1, 0.82, 0.68] : temp > 0.8 ? [0.75, 0.85, 1] : [1, 0.97, 0.93]
-    const b = 0.25 + m * 3.2
-    col.push(c[0] * b, c[1] * b, c[2] * b)
-    size.push(1.1 + m * 2.6)
-  }
-  const g = new BufferGeometry()
-  g.setAttribute('position', new Float32BufferAttribute(pos, 3))
-  g.setAttribute('color', new Float32BufferAttribute(col, 3))
-  g.setAttribute('aSize', new Float32BufferAttribute(size, 1))
-  return g
+/** Is the sun above the real skyline as seen from the fire? (baked with the terrain) */
+const { sun } = world().meta
+export const CAMP_IN_SUN = (sun.campHorizon ?? -90) < sun.elevation
+
+/** The low evening sun, with a shadow frustum that follows the player. */
+function Sunlight() {
+  if (!CAMP_IN_SUN) return null // the mountainside still shades the meadow
+  return <SunlightInner />
 }
 
-const starMaterial = new ShaderMaterial({
-  uniforms: { uTime: { value: 0 }, uPixelRatio: { value: 1 } },
-  vertexShader: /* glsl */ `
-    attribute vec3 color;
-    attribute float aSize;
-    uniform float uTime;
-    uniform float uPixelRatio;
-    varying vec3 vColor;
-    void main() {
-      vec4 mv = modelViewMatrix * vec4(position, 1.0);
-      gl_Position = projectionMatrix * mv;
-      float tw = 0.75 + 0.25 * sin(uTime * (1.5 + fract(position.x * 0.013) * 3.0) + position.z);
-      // fade toward the horizon (extinction)
-      float alt = normalize(position).y;
-      vColor = color * tw * smoothstep(-0.02, 0.25, alt);
-      gl_PointSize = aSize * uPixelRatio;
-    }`,
-  fragmentShader: /* glsl */ `
-    varying vec3 vColor;
-    void main() {
-      float d = length(gl_PointCoord - 0.5);
-      float a = smoothstep(0.5, 0.0, d);
-      gl_FragColor = vec4(vColor * a * a, 1.0);
-    }`,
-  transparent: true,
-  depthWrite: false,
-  blending: AdditiveBlending,
-})
-
-function Moon() {
-  const map = useTexture(ASSETS.moon)
-  useEffect(() => {
-    map.colorSpace = SRGBColorSpace
-  }, [map])
-  // Real angular diameter ≈ 0.52°
-  const radius = Math.tan((0.26 * Math.PI) / 180) * SKY_RADIUS * SKY.moonSize
-  return (
-    <mesh position={MOON_DIR.clone().multiplyScalar(SKY_RADIUS)} renderOrder={-9} rotation={[0, -1.2, 0]}>
-      <sphereGeometry args={[radius, 32, 16]} />
-      <meshBasicMaterial map={map} color={[1.9, 1.85, 1.75]} fog={false} depthWrite={false} toneMapped />
-    </mesh>
-  )
-}
-
-/** Moonlight with a shadow frustum that follows the player. */
-function Moonlight() {
+function SunlightInner() {
   const light = useRef<DirectionalLight>(null!)
+  const mapSize = useQuality((q) => q.settings.shadowMapSize)
+  const range = useQuality((q) => q.settings.shadowRange)
   const target = useMemo(() => new Object3D(), [])
   const scene = useThree((s) => s.scene)
+  const frame = useRef(0)
 
   useEffect(() => {
     scene.add(target)
     const l = light.current
     l.target = target
     const cam = l.shadow.camera
-    const r = MOONLIGHT.shadowRange
+    const r = range
+    l.shadow.mapSize.set(mapSize, mapSize)
+    l.shadow.map?.dispose()
+    l.shadow.map = null
     cam.left = -r
     cam.right = r
     cam.top = r
     cam.bottom = -r
     cam.near = 1
-    cam.far = 260
-    cam.layers.enable(FAR_LAYER) // distant trees (DISTANT_LAYER) are skipped
+    cam.far = SUN.shadowDepth
+    cam.layers.enable(FAR_LAYER)
     cam.updateProjectionMatrix()
     return () => {
       scene.remove(target)
     }
-  }, [scene, target])
+  }, [scene, target, mapSize, range])
 
-  const frame = useRef(0)
   useFrame(() => {
+    // The forest doesn't move: refreshing the big shadow map every other frame is plenty.
     light.current.shadow.autoUpdate = false
     if (frame.current++ % 2 === 0) light.current.shadow.needsUpdate = true
     const p = localRuntime.position
-    // snap to texel grid to avoid shimmering shadows while moving
-    const step = (MOONLIGHT.shadowRange * 2) / MOONLIGHT.shadowMapSize
+    const step = (range * 2) / mapSize
     const x = Math.round(p.x / step) * step
     const z = Math.round(p.z / step) * step
     target.position.set(x, p.y, z)
-    light.current.position.set(x + MOON_DIR.x * 150, p.y + MOON_DIR.y * 150, z + MOON_DIR.z * 150)
+    const d = SUN.shadowDepth * 0.8
+    light.current.position.set(x + SUN_DIR.x * d, p.y + SUN_DIR.y * d, z + SUN_DIR.z * d)
   })
 
   return (
     <directionalLight
       ref={light}
-      color={MOONLIGHT.color}
-      intensity={MOONLIGHT.intensity}
+      color={SUN.color}
+      intensity={SUN.intensity}
       castShadow
-      shadow-mapSize={[MOONLIGHT.shadowMapSize, MOONLIGHT.shadowMapSize]}
-      shadow-bias={-0.0004}
-      shadow-normalBias={0.05}
+      shadow-bias={-0.0003}
+      shadow-normalBias={0.06}
     />
   )
 }
 
+/** A real clear-sky golden-hour sky (HDRI) lighting the scene, rotated so its sun is where the real one is. */
 export function Sky() {
-  const group = useRef<Group>(null!)
-  const stars = useMemo(() => createStars(), [])
-  const dpr = useThree((s) => s.viewport.dpr)
-
-  useFrame(({ camera, clock }) => {
-    group.current.position.copy(camera.position)
-    starMaterial.uniforms.uTime.value = clock.elapsedTime
-    starMaterial.uniforms.uPixelRatio.value = dpr
-  })
-
   return (
     <>
       <Environment
         files={SKY.hdr}
         background
         backgroundIntensity={SKY.backgroundIntensity}
-        environmentIntensity={SKY.environmentIntensity}
+        environmentIntensity={SKY.environmentIntensity * (CAMP_IN_SUN ? 1 : 0.7)}
         backgroundRotation={skyRotation}
         environmentRotation={skyRotation}
       />
-      <group ref={group}>
-        <points geometry={stars} material={starMaterial} renderOrder={-10} frustumCulled={false} />
-        <Moon />
-      </group>
-      <Moonlight />
+      <Sunlight />
     </>
   )
 }

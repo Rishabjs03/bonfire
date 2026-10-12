@@ -1,24 +1,31 @@
-import { VIEW_DIR, WORLD } from '../config'
+import { WORLD } from '../config'
+import { world } from '../world/worldData'
 import { smoothstep } from './math'
 
+const { local, meta } = world()
+const N = meta.local.n
+const HALF = meta.local.half
+
+function sampleGrid(x: number, z: number) {
+  // row 0 is the north edge (z = -HALF), column 0 the west edge
+  const fx = Math.min(N - 1.001, Math.max(0, ((x + HALF) / (2 * HALF)) * (N - 1)))
+  const fy = Math.min(N - 1.001, Math.max(0, ((z + HALF) / (2 * HALF)) * (N - 1)))
+  const ix = Math.floor(fx)
+  const iy = Math.floor(fy)
+  const ax = fx - ix
+  const ay = fy - iy
+  const i = iy * N + ix
+  return (local[i] * (1 - ax) + local[i + 1] * ax) * (1 - ay) + (local[i + N] * (1 - ax) + local[i + N + 1] * ax) * ay
+}
+
+const PIT = sampleGrid(0, 0)
+
 /**
- * Local ground height around camp (metres). A gentle shelf on the mountainside:
- * flat at the fire, softly bumpy snow, falling away toward the Matterhorn and
- * rising behind.
+ * Real ground height (metres, relative to the campfire) at local x (east) / z (south),
+ * from swissALTI3D at 2 m, with a small level patch where the fire was built.
  */
 export function heightAt(x: number, z: number) {
-  const r = Math.hypot(x, z)
-  const bumps =
-    Math.sin(x * 0.11 + 0.4) * Math.cos(z * 0.09) +
-    0.5 * Math.sin(x * 0.27 + 1.7) * Math.sin(z * 0.23 + 0.4) +
-    0.22 * Math.sin(x * 0.61 + 0.3) * Math.cos(z * 0.57 + 2.1)
-  const flatten = smoothstep(3.5, 11, r)
-
-  const along = x * VIEW_DIR.x + z * VIEW_DIR.z
-  const facing = r > 0.001 ? along / r : 0
-  const wedge = smoothstep(0.25, 0.75, facing)
-  const fall = Math.max(0, along - WORLD.viewSlopeStart)
-  const rise = Math.max(0, -along - 18)
-
-  return bumps * WORLD.groundBump * flatten - fall * fall * 0.0065 * wedge + rise * rise * 0.0042
+  const h = sampleGrid(x, z)
+  const level = 1 - smoothstep(WORLD.firePitFlatten * 0.5, WORLD.firePitFlatten, Math.hypot(x, z))
+  return h + (PIT - h) * level
 }

@@ -1,7 +1,8 @@
 /**
- * Procedural soundscape, no audio files: a crackling fire (noise bed + random pops and
- * snaps) that gets louder, brighter and pans with where it is relative to you; wind
- * moving through the trees in slow gusts; and snow crunching under your boots.
+ * Procedural soundscape of a late-summer evening at Riffelalp, no audio files: a crackling
+ * fire (noise bed + random pops and snaps) that gets louder, brighter and pans with where it
+ * is relative to you; a breeze moving through the larches; crickets in the meadow; distant
+ * cowbells echoing off the valley; and footsteps swishing through the grass.
  */
 
 const MUTE_KEY = 'bonfire-muted'
@@ -52,6 +53,8 @@ class AudioEngine {
   private windGust!: GainNode
   private windPan!: StereoPannerNode
   private stepsOut!: GainNode
+  private ambientOut!: GainNode
+  private echo!: DelayNode
   private white!: AudioBuffer
   private nearness = 0
   private timers: number[] = []
@@ -114,13 +117,13 @@ class AudioEngine {
 
     // --- wind ----------------------------------------------------------------------
     this.windOut = ctx.createGain()
-    this.windOut.gain.value = 0.2
+    this.windOut.gain.value = 0.14
     this.windPan = ctx.createStereoPanner()
     this.windGust = ctx.createGain()
     this.windGust.gain.value = 0.6
     this.windFilter = ctx.createBiquadFilter()
     this.windFilter.type = 'lowpass'
-    this.windFilter.frequency.value = 450
+    this.windFilter.frequency.value = 650
     this.windFilter.Q.value = 0.7
     const wind = ctx.createBufferSource()
     wind.buffer = brown
@@ -146,8 +149,23 @@ class AudioEngine {
     this.stepsOut.gain.value = 0.32
     this.stepsOut.connect(this.master)
 
+    // --- meadow & valley ambience: crickets near, cowbells far, a valley echo ----------
+    this.ambientOut = ctx.createGain()
+    this.ambientOut.connect(this.master)
+    this.echo = ctx.createDelay(1)
+    this.echo.delayTime.value = 0.42
+    const echoFeedback = ctx.createGain()
+    echoFeedback.gain.value = 0.32
+    const echoTone = ctx.createBiquadFilter()
+    echoTone.type = 'lowpass'
+    echoTone.frequency.value = 1800
+    this.echo.connect(echoTone).connect(echoFeedback).connect(this.echo)
+    echoTone.connect(this.ambientOut)
+
     this.scheduleCrackle()
     this.scheduleGust()
+    for (let i = 0; i < 4; i++) this.scheduleCricket(i)
+    for (let i = 0; i < 3; i++) this.scheduleCow(i)
   }
 
   onMuteChange(fn: (muted: boolean) => void) {
@@ -181,44 +199,120 @@ class AudioEngine {
     this.fireFilter.frequency.setTargetAtTime(350 + 9000 * Math.pow(near, 0.75), t, 0.12)
     this.firePan.pan.setTargetAtTime(Math.max(-1, Math.min(1, firePan)) * (0.35 + 0.5 * near), t, 0.1)
     this.fireBed.gain.setTargetAtTime(0.35 + (flicker - 1) * 0.8, t, 0.05)
-    this.windOut.gain.setTargetAtTime(0.22 * (1 - 0.65 * near), t, 0.4)
+    this.windOut.gain.setTargetAtTime(0.15 * (1 - 0.5 * near), t, 0.4)
+    this.ambientOut.gain.setTargetAtTime(1 - 0.45 * near, t, 0.5)
   }
 
-  /** One boot crunching into snow. */
+  /** One boot swishing through dry grass. */
   footstep(weight = 1) {
     const ctx = this.ctx
     if (!ctx || ctx.state !== 'running') return
     const t = ctx.currentTime
-    const grains = 4 + Math.floor(Math.random() * 4)
-    for (let i = 0; i < grains; i++) {
-      const at = t + i * (0.012 + Math.random() * 0.02)
-      const src = ctx.createBufferSource()
-      src.buffer = this.white
-      src.playbackRate.value = 0.7 + Math.random() * 0.6
-      const bp = ctx.createBiquadFilter()
-      bp.type = 'bandpass'
-      bp.frequency.value = 1300 + Math.random() * 1800
-      bp.Q.value = 0.9
-      const g = ctx.createGain()
-      const peak = (0.12 + Math.random() * 0.2) * weight * (i === 0 ? 1.4 : 1)
-      g.gain.setValueAtTime(0, at)
-      g.gain.linearRampToValueAtTime(peak, at + 0.004)
-      g.gain.exponentialRampToValueAtTime(0.0008, at + 0.03 + Math.random() * 0.04)
-      src.connect(bp).connect(g).connect(this.stepsOut)
-      src.start(at, Math.random() * 1.5, 0.1)
-    }
-    // the dull compression thump underneath
+    const src = ctx.createBufferSource()
+    src.buffer = this.white
+    src.playbackRate.value = 0.8 + Math.random() * 0.4
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.Q.value = 0.8
+    // the rustle sweeps up as the leg brushes through
+    bp.frequency.setValueAtTime(1800 + Math.random() * 600, t)
+    bp.frequency.linearRampToValueAtTime(4200 + Math.random() * 1500, t + 0.16)
+    const g = ctx.createGain()
+    const peak = (0.09 + Math.random() * 0.06) * weight
+    g.gain.setValueAtTime(0, t)
+    g.gain.linearRampToValueAtTime(peak, t + 0.05)
+    g.gain.exponentialRampToValueAtTime(0.0005, t + 0.22 + Math.random() * 0.08)
+    src.connect(bp).connect(g).connect(this.stepsOut)
+    src.start(t, Math.random() * 1.5, 0.35)
+    // the soft heel landing on turf
     const thump = ctx.createBufferSource()
     thump.buffer = this.white
     const lp = ctx.createBiquadFilter()
     lp.type = 'lowpass'
-    lp.frequency.value = 220
+    lp.frequency.value = 160
     const tg = ctx.createGain()
-    tg.gain.setValueAtTime(0, t)
-    tg.gain.linearRampToValueAtTime(0.5 * weight, t + 0.01)
-    tg.gain.exponentialRampToValueAtTime(0.001, t + 0.09)
+    tg.gain.setValueAtTime(0, t + 0.04)
+    tg.gain.linearRampToValueAtTime(0.25 * weight, t + 0.05)
+    tg.gain.exponentialRampToValueAtTime(0.001, t + 0.12)
     thump.connect(lp).connect(tg).connect(this.stepsOut)
-    thump.start(t, Math.random(), 0.12)
+    thump.start(t + 0.04, Math.random(), 0.12)
+  }
+
+  /** A field cricket: bursts of 3–6 short pulses around 4–5 kHz, from somewhere in the meadow. */
+  private cricket(voice: number) {
+    const ctx = this.ctx
+    if (!ctx) return
+    const t0 = ctx.currentTime + 0.02
+    const freq = 4300 + voice * 220 + Math.random() * 80
+    const pan = ctx.createStereoPanner()
+    pan.pan.value = [-0.7, 0.55, -0.2, 0.85][voice % 4]
+    const level = ctx.createGain()
+    level.gain.value = 0.018 + (voice % 2) * 0.008
+    pan.connect(level).connect(this.ambientOut)
+    const pulses = 3 + Math.floor(Math.random() * 4)
+    for (let i = 0; i < pulses; i++) {
+      const at = t0 + i * 0.045
+      const osc = ctx.createOscillator()
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0, at)
+      g.gain.linearRampToValueAtTime(1, at + 0.006)
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.03)
+      osc.connect(g).connect(pan)
+      osc.start(at)
+      osc.stop(at + 0.035)
+    }
+  }
+
+  private scheduleCricket(voice: number) {
+    this.cricket(voice)
+    // chirping comes in runs, with pauses
+    const wait = Math.random() < 0.15 ? 2500 + Math.random() * 4000 : 380 + Math.random() * 260
+    this.timers.push(window.setTimeout(() => this.scheduleCricket(voice), wait))
+  }
+
+  /** A distant Swiss cowbell: inharmonic metal partials, softened by distance, echoing in the valley. */
+  private cowbell(voice: number) {
+    const ctx = this.ctx
+    if (!ctx) return
+    const t = ctx.currentTime + 0.02
+    const f0 = [520, 610, 445][voice % 3] * (0.98 + Math.random() * 0.04)
+    const pan = ctx.createStereoPanner()
+    pan.pan.value = [-0.5, 0.35, 0.75][voice % 3]
+    const distance = ctx.createBiquadFilter()
+    distance.type = 'lowpass'
+    distance.frequency.value = 2600
+    const level = ctx.createGain()
+    level.gain.value = 0.02 * (0.6 + Math.random() * 0.6)
+    distance.connect(pan).connect(level)
+    level.connect(this.ambientOut)
+    level.connect(this.echo)
+    for (const [ratio, amp, decay] of [
+      [1, 1, 1.1],
+      [2.76, 0.5, 0.7],
+      [5.4, 0.25, 0.4],
+      [8.93, 0.12, 0.25],
+    ]) {
+      const osc = ctx.createOscillator()
+      osc.type = 'sine'
+      osc.frequency.value = f0 * ratio
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0, t)
+      g.gain.linearRampToValueAtTime(amp, t + 0.004)
+      g.gain.exponentialRampToValueAtTime(0.0005, t + decay)
+      osc.connect(g).connect(distance)
+      osc.start(t)
+      osc.stop(t + decay + 0.05)
+    }
+  }
+
+  private scheduleCow(voice: number, clang = 0) {
+    // a grazing cow: a few clangs as it steps, then a long quiet while it eats
+    const moving = clang < 2 + Math.floor(Math.random() * 5)
+    if (moving) this.cowbell(voice)
+    const wait = moving ? 350 + Math.random() * 650 : 5000 + Math.random() * 14000
+    this.timers.push(window.setTimeout(() => this.scheduleCow(voice, moving ? clang + 1 : 0), wait))
   }
 
   private crackle() {
@@ -262,7 +356,7 @@ class AudioEngine {
     const strength = 0.35 + Math.random() * 0.75
     const dur = 2.5 + Math.random() * 5
     this.windGust.gain.setTargetAtTime(strength, t, dur / 3)
-    this.windFilter.frequency.setTargetAtTime(260 + strength * 520, t, dur / 3)
+    this.windFilter.frequency.setTargetAtTime(420 + strength * 700, t, dur / 3)
     this.windPan.pan.setTargetAtTime((Math.random() - 0.5) * 1.2, t, dur / 2)
     this.timers.push(window.setTimeout(() => this.scheduleGust(), dur * 1000))
   }

@@ -42,7 +42,7 @@ function createSparks() {
         float heat = 1.0 - age;
         float flick = 0.6 + 0.4 * sin(uTime * 30.0 + aSeed.y * 7.0);
         vColor = mix(vec3(1.2, 0.18, 0.02), vec3(3.5, 2.2, 0.9), heat * heat) * heat * flick * 3.0;
-        gl_PointSize = max(1.5, 0.035 * uScale / -mv.z);
+        gl_PointSize = clamp(0.03 * uScale / -mv.z, 1.5, 9.0);
       }`,
     fragmentShader: /* glsl */ `
       varying vec3 vColor;

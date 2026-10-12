@@ -1,8 +1,12 @@
 # Bonfire
 
 A small fire in the Swiss Alps. Open the link, pick a name and a jacket, and walk through a
-moonlit spruce forest above Zermatt to a crackling campfire, with the real Matterhorn on the
-horizon and whoever else is there tonight.
+real larch-and-stone-pine meadow below Riffelalp (2,110 m, above Zermatt) to a crackling
+campfire at golden hour, with the real Matterhorn on the horizon and whoever else is there.
+
+The landscape is real: swisstopo elevation (swissALTI3D, 2 m) and aerial imagery
+(SWISSIMAGE) out to 26 km, the forest placed where the real trees stand, and the evening sun
+at its true mid-September position. Add `?time=sunrise` for the morning version.
 
 Built with Vite, React, TypeScript, React Three Fiber, drei, postprocessing, Zustand,
 Tailwind CSS, Supabase Realtime (Presence + Broadcast) and the Web Audio API.
@@ -43,8 +47,14 @@ Without `.env.local` the site still runs; you'll just be alone at the fire.
 | 1–4 | wave · warm hands · sleepy · heart |
 | M | mute (remembered) |
 
-On touch screens: a thumbstick, plus chat and emote buttons. Note: the visuals target desktop
-GPUs; phones may run slowly.
+On touch screens: a thumbstick, plus chat and emote buttons.
+
+## Performance
+
+Quality adapts automatically: it starts from a guess based on your GPU (medium for most),
+steps up when there's headroom and down when the frame rate drops, and remembers the level.
+Force a level with `?quality=low|medium|high`. Low runs comfortably on integrated graphics;
+high wants a recent discrete GPU or Apple silicon.
 
 ## Deploy to Vercel
 
@@ -64,7 +74,13 @@ Every feel-related number (fog, light flicker, walking speed, sit distance, came
 network rates, room cap) lives in [`src/config.ts`](src/config.ts).
 
 In development you can switch features off to profile, e.g.
-`http://localhost:5173/?off=flames,smoke,ao,trees,terrain,snow,post`.
+`http://localhost:5173/?off=flames,smoke,ao,trees,grass,terrain,farforest,rocks,post,audio`.
+
+## Rebuilding the landscape
+
+`node scripts/build-terrain.mjs <cacheDir> public/assets/riffelalp` re-downloads the
+elevation and aerial imagery (~25 MB, cached) and re-bakes everything in about a minute
+(`SUN=sunrise` for the morning shadows). Edit `CAMP` at the top of the script to move the fire.
 
 ## Realtime quotas
 
@@ -85,20 +101,22 @@ bigger crowds.
 ```
 src/
   config.ts            all tunables
-  scene/               sky + moon, real Alps terrain, ground, procedural spruces, fire, snow, post FX
+  scene/               sky + sun, real terrain, meadow, grass, larches & stone pines, impostor forest, fire, post FX
+  world/               loaders for the baked real-world data
   scene/fire/          volumetric flames, smoke, sparks, charred logs, light scattering
   player/              local + remote players, hooded character, camera, controls, collision
   net/                 Supabase client, presence/broadcast, protocol validation, interpolation
-  audio/               procedural fire, wind and footsteps (Web Audio, no files)
+  audio/               procedural fire, breeze, crickets, cowbells, footsteps (Web Audio, no files)
   ui/                  join screen, HUD, chat input, counter, mute, touch controls
   store/               zustand stores (game state, chat bubbles / emotes)
   lib/                 names, palette, profanity filter, terrain/forest generation, noise
-public/assets/         textures, models, sky and elevation data — see CREDITS.md
+public/assets/         textures, models, sky and the baked landscape — see CREDITS.md
+scripts/               build-terrain.mjs: bakes the real landscape from swisstopo data
 ```
 
 ## Credits
 
-Textures, models and the night sky are CC0 from [Poly Haven](https://polyhaven.com); the moon
-is NASA's LROC colour map (public domain); elevation is from
-[AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/). Details in
+Terrain and aerial imagery © swisstopo (swissALTI3D, SWISSIMAGE), plus
+[AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/); textures, models and the
+sky are CC0 from [Poly Haven](https://polyhaven.com). Details in
 [`public/assets/CREDITS.md`](public/assets/CREDITS.md).

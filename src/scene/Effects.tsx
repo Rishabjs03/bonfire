@@ -1,13 +1,16 @@
 import { Bloom, EffectComposer, N8AO, Noise, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { BlendFunction, ToneMappingMode } from 'postprocessing'
-import { POST, RENDER } from '../config'
+import { POST } from '../config'
 import { enabled } from '../lib/debug'
+import { useQuality } from '../store/quality'
 import { FireHaze } from './fire/FireHaze'
 
 export function Effects() {
+  const msaa = useQuality((q) => q.settings.msaa)
+  const ao = useQuality((q) => q.settings.ao)
   return (
-    <EffectComposer multisampling={RENDER.msaa}>
-      {enabled('ao') ? (
+    <EffectComposer multisampling={msaa}>
+      {ao && enabled('ao') ? (
         <N8AO aoRadius={POST.aoRadius} intensity={POST.aoIntensity} distanceFalloff={0.6} quality="medium" halfRes />
       ) : (
         <></>

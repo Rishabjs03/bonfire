@@ -2,11 +2,11 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { AdditiveBlending, BoxGeometry, FrontSide, Mesh, ShaderMaterial, Vector3 } from 'three'
 import { BLACKBODY, SIMPLEX_3D } from '../../lib/glsl'
+import { useQuality } from '../../store/quality'
 import { fireState } from '../fireState'
 
 const WIDTH = 1.3
 const HEIGHT = 2.1
-const STEPS = 30
 
 /**
  * Raymarched volumetric flames inside a box. Density comes from rising, swirling
@@ -14,7 +14,7 @@ const STEPS = 30
  * colour comes from a blackbody temperature ramp. Rendered additively in HDR so
  * bloom and tone mapping turn it into a believable, glowing fire.
  */
-function createFireMaterial() {
+function createFireMaterial(STEPS: number) {
   return new ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
@@ -103,7 +103,8 @@ function createFireMaterial() {
 export function FireVolume() {
   const mesh = useRef<Mesh>(null!)
   const geometry = useMemo(() => new BoxGeometry(WIDTH, HEIGHT, WIDTH).translate(0, HEIGHT / 2, 0), [])
-  const material = useMemo(() => createFireMaterial(), [])
+  const steps = useQuality((q) => q.settings.fireSteps)
+  const material = useMemo(() => createFireMaterial(steps), [steps])
   const camLocal = useMemo(() => new Vector3(), [])
 
   useFrame(({ camera, clock }) => {

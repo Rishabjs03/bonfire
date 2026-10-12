@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
+import { useMemo, useRef, type ReactNode, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Html, useTexture } from '@react-three/drei'
 import {
-  AdditiveBlending,
   CapsuleGeometry,
   DoubleSide,
   Group,
@@ -10,15 +9,12 @@ import {
   MeshStandardMaterial,
   RepeatWrapping,
   SphereGeometry,
-  Sprite,
-  SpriteMaterial,
   TorusGeometry,
   Vector2,
   type Texture,
 } from 'three'
 import { damp } from '../lib/math'
 import type { CharacterColors } from '../lib/palette'
-import { getSoftDotTexture } from '../lib/textures'
 import { ASSETS } from '../scene/assets'
 import { labelLayerRef } from '../ui/labelLayer'
 import { useSocialStore } from '../store/socialStore'
@@ -86,7 +82,6 @@ const GEO = {
   // Hood shell with the front (+z) slice cut away for the face opening; elongated like a parka hood.
   hood: createHoodGeometry(),
   head: new SphereGeometry(0.118, 16, 12).scale(0.92, 1.08, 0.95),
-  fur: new TorusGeometry(0.1, 0.026, 7, 26).scale(1, 1.32, 0.8),
   scarf: new TorusGeometry(0.115, 0.045, 8, 20).rotateX(Math.PI / 2),
   upperArm: new CapsuleGeometry(0.074, 0.24, 4, 12).translate(0, -0.14, 0),
   forearm: new CapsuleGeometry(0.066, 0.22, 4, 12).translate(0, -0.13, 0),
@@ -110,7 +105,6 @@ interface Materials {
   accent: MeshStandardMaterial
   pants: MeshStandardMaterial
   boots: MeshStandardMaterial
-  fur: MeshStandardMaterial
   face: MeshStandardMaterial
 }
 
@@ -137,49 +131,16 @@ function useCharacterMaterials(colors: CharacterColors): Materials {
         normalScale: new Vector2(normalScale, normalScale),
       })
     return {
-      parka: Object.assign(fabric(colors.body, tex.cabanNor, 6, 0.62, 0.35), {
+      parka: Object.assign(fabric(colors.body, tex.cabanNor, 6, 0.78, 0.35), {
         roughnessMap: tiled(tex.fleeceRough, 6),
         side: DoubleSide, // hood lining is visible through the face opening
       }),
       accent: fabric(colors.hat, tex.fleeceNor, 4, 0.95, 1),
       pants: fabric('#24262b', tex.cabanNor, 5, 0.9),
       boots: new MeshStandardMaterial({ color: '#2b1e16', roughness: 0.55, metalness: 0 }),
-      fur: fabric('#4f453c', tex.fleeceNor, 3, 1, 1.6),
       face: new MeshStandardMaterial({ color: '#030202', roughness: 1, metalness: 0, envMapIntensity: 0 }),
     }
   }, [colors.body, colors.hat, tex])
-}
-
-/** Breath condensing in the cold air: a soft puff every few seconds. */
-function Breath({ sitting }: { sitting: RefObject<number> }) {
-  const sprite = useRef<Sprite>(null!)
-  const material = useMemo(
-    () =>
-      new SpriteMaterial({
-        map: getSoftDotTexture(),
-        color: '#7d8796',
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        blending: AdditiveBlending,
-      }),
-    [],
-  )
-  const offset = useRef(0)
-  useEffect(() => {
-    offset.current = Math.random() * 10 // so a group of people don't breathe in unison
-  }, [])
-  useFrame(({ clock }) => {
-    const period = 3.6
-    const t = ((clock.elapsedTime + offset.current) % period) / period
-    const puff = t < 0.45 ? t / 0.45 : 0
-    material.opacity = puff > 0 ? Math.sin(puff * Math.PI) * 0.09 : 0
-    const s = 0.06 + puff * 0.22
-    sprite.current.scale.set(s, s, s)
-    const lowered = sitting.current * SIT_DROP
-    sprite.current.position.set(0, 1.55 - lowered + puff * 0.1, 0.24 + puff * 0.3)
-  })
-  return <sprite ref={sprite} material={material} />
 }
 
 interface CharacterProps {
@@ -316,16 +277,13 @@ export function Character({ playerId, name, colors, motion, children }: Characte
             </group>
           ))}
 
-          {/* hood with fur-trimmed opening and a face lost in shadow */}
+          {/* hood up against the evening breeze; the face lost in its shadow */}
           <group ref={hood} position={[0, 1.6, -0.025]}>
             <mesh geometry={GEO.hood} material={mats.parka} castShadow />
             <mesh geometry={GEO.head} material={mats.face} position={[0, -0.02, 0.0]} />
-            <mesh geometry={GEO.fur} material={mats.fur} position={[0, -0.01, 0.142]} rotation={[-0.12, 0, 0]} castShadow />
           </group>
         </group>
       </group>
-
-      <Breath sitting={sit} />
 
       <Html position={[0, 2.05, 0]} center distanceFactor={7} zIndexRange={[5, 0]} portal={labelLayerRef as RefObject<HTMLElement>}>
         <div className="flex flex-col items-center gap-1 select-none">

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useProgress } from '@react-three/drei'
 import { audioEngine } from '../audio/audioEngine'
+import { enabled } from '../lib/debug'
 import { randomName } from '../lib/names'
 import { PALETTE } from '../lib/palette'
 import { joinFire } from '../net/useMultiplayer'
@@ -21,7 +22,7 @@ export function JoinScreen() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (!ready) return
-    audioEngine.start() // inside the click: browsers only allow audio after a user gesture
+    if (enabled('audio')) audioEngine.start() // inside the click: browsers only allow audio after a user gesture
     void joinFire(draft, colors)
   }
 
@@ -90,6 +91,7 @@ export function JoinScreen() {
         >
           {ready ? 'Join the fire' : `gathering firewood… ${Math.round(progress)}%`}
         </button>
+        <p className="mt-10 text-[11px] text-stone-400/60">Riffelalp, above Zermatt · 2,110 m · the real Matterhorn on the horizon</p>
       </form>
     </div>
   )

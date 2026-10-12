@@ -26,11 +26,7 @@ function FirePit() {
 
 function FireLight() {
   const light = useRef<PointLight>(null!)
-  const frame = useRef(0)
   useFrame(({ clock }) => {
-    // Trees don't move: refreshing the 6-face shadow cube every 3rd frame is plenty.
-    light.current.shadow.autoUpdate = false
-    if (frame.current++ % 3 === 0) light.current.shadow.needsUpdate = true
     const t = clock.elapsedTime * FIRE.flickerSpeed
     const n = flicker(t * 0.9) * 0.7 + Math.sin(t * 31.0) * 0.1 + (Math.random() - 0.5) * 0.15
     fireState.flicker = 1 + n * FIRE.flickerAmount
@@ -45,13 +41,6 @@ function FireLight() {
       intensity={FIRE.lightIntensity}
       decay={2}
       distance={0}
-      castShadow
-      shadow-mapSize={[768, 768]}
-      shadow-bias={-0.002}
-      shadow-normalBias={0.03}
-      shadow-radius={4}
-      shadow-camera-near={0.3}
-      shadow-camera-far={30}
     />
   )
 }
