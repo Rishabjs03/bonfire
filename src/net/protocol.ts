@@ -1,5 +1,7 @@
 import { WORLD } from '../config'
 import { PALETTE, type CharacterColors } from '../lib/palette'
+import { filterProfanity } from '../lib/profanity'
+import { EMOTES, type EmoteKind } from '../store/socialStore'
 
 /** Presence metadata: who someone is, plus where they last came to rest. */
 export interface PresenceMeta {
@@ -26,6 +28,17 @@ export interface MoveMessage {
 }
 
 export const MAX_NAME_LENGTH = 24
+export const MAX_CHAT_LENGTH = 80
+
+export interface ChatMessage {
+  id: string
+  text: string
+}
+
+export interface EmoteMessage {
+  id: string
+  kind: EmoteKind
+}
 
 const round = (n: number) => Math.round(n * 100) / 100
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
@@ -34,7 +47,14 @@ const num = (v: unknown, limit: number) =>
 const COLOR = /^#[0-9a-f]{6}$/i
 
 export function cleanName(name: string) {
-  return name.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH)
+  return filterProfanity(name.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH))
+}
+
+export function cleanChat(text: string) {
+  // strip control characters, collapse whitespace, clamp, filter
+  // eslint-disable-next-line no-control-regex -- removing control characters is the point
+  const printable = text.replace(/[\u0000-\u001f\u007f]/g, '')
+  return filterProfanity(printable.replace(/\s+/g, ' ').trim().slice(0, MAX_CHAT_LENGTH))
 }
 
 export function encodeMove(m: MoveMessage): MoveMessage {
@@ -71,4 +91,15 @@ export function parsePresence(p: unknown): PresenceMeta | null {
     rotY: num(p.rotY, 100) ?? 0,
     sitting: p.sitting === true,
   }
+}
+
+export function parseChat(p: unknown): ChatMessage | null {
+  if (!isObject(p) || typeof p.id !== 'string' || p.id.length > 64 || typeof p.text !== 'string') return null
+  const text = cleanChat(p.text)
+  return text ? { id: p.id, text } : null
+}
+
+export function parseEmote(p: unknown): EmoteMessage | null {
+  if (!isObject(p) || typeof p.id !== 'string' || p.id.length > 64) return null
+  return typeof p.kind === 'string' && p.kind in EMOTES ? { id: p.id, kind: p.kind as EmoteKind } : null
 }

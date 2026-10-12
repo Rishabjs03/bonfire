@@ -21,7 +21,9 @@ import type { CharacterColors } from '../lib/palette'
 import { getSoftDotTexture } from '../lib/textures'
 import { ASSETS } from '../scene/assets'
 import { labelLayerRef } from '../ui/labelLayer'
+import { useSocialStore } from '../store/socialStore'
 import type { MotionState } from './motion'
+import { PlayerOverlays } from './Overlays'
 
 // --- Shared geometry (metres, origin at the feet, facing +z) -------------------------
 
@@ -181,6 +183,8 @@ function Breath({ sitting }: { sitting: RefObject<number> }) {
 }
 
 interface CharacterProps {
+  /** Player id, for speech bubbles and emotes. */
+  playerId: string
   name: string
   colors: CharacterColors
   motion: RefObject<MotionState>
@@ -189,7 +193,7 @@ interface CharacterProps {
 }
 
 /** A person in a hooded winter parka. Procedurally animated walk, idle, and sitting by the fire. */
-export function Character({ name, colors, motion, children }: CharacterProps) {
+export function Character({ playerId, name, colors, motion, children }: CharacterProps) {
   const mats = useCharacterMaterials(colors)
   const body = useRef<Group>(null!)
   const torso = useRef<Group>(null!)
@@ -199,7 +203,7 @@ export function Character({ name, colors, motion, children }: CharacterProps) {
   const shoulders = useRef<(Group | null)[]>([])
   const elbows = useRef<(Group | null)[]>([])
   const sit = useRef(0)
-  const anim = useRef({ phase: 0, speed: 0 })
+  const anim = useRef({ phase: 0, speed: 0, wave: 0 })
 
   useFrame(({ clock }, rawDt) => {
     const dt = Math.min(rawDt, 0.05)
@@ -214,6 +218,10 @@ export function Character({ name, colors, motion, children }: CharacterProps) {
     const s = sit.current
     const t = clock.elapsedTime
     const ph = a.phase
+    // Waving: right arm raised, hand swaying, for the length of the emote.
+    const emote = useSocialStore.getState().emotes[playerId]
+    const waving = emote?.value === 'wave' && Date.now() - emote.at < 2200 ? 1 : 0
+    a.wave += (waving - a.wave) * damp(8, dt)
     const breathe = Math.sin(t * 1.7) * 0.008
 
     body.current.position.y = -SIT_DROP * s + (Math.abs(Math.cos(ph)) * 0.035 - 0.02) * w
@@ -244,6 +252,13 @@ export function Character({ name, colors, motion, children }: CharacterProps) {
       shoulder.rotation.z = sign * (0.1 * (1 - s) + 0.04 * s)
       elbow.rotation.x = -0.25 * w - 1.25 * s - rub
       elbow.rotation.z = -sign * 0.55 * s
+      if (side === 1 && a.wave > 0.01) {
+        const v = a.wave
+        shoulder.rotation.x = shoulder.rotation.x * (1 - v) - 0.35 * v
+        shoulder.rotation.z = shoulder.rotation.z * (1 - v) - 2.5 * v
+        elbow.rotation.x = elbow.rotation.x * (1 - v)
+        elbow.rotation.z = elbow.rotation.z * (1 - v) + (-0.5 + Math.sin(t * 9) * 0.35) * v
+      }
     }
   })
 
@@ -314,6 +329,7 @@ export function Character({ name, colors, motion, children }: CharacterProps) {
 
       <Html position={[0, 2.05, 0]} center distanceFactor={7} zIndexRange={[5, 0]} portal={labelLayerRef as RefObject<HTMLElement>}>
         <div className="flex flex-col items-center gap-1 select-none">
+          <PlayerOverlays id={playerId} />
           {children}
           <span className="whitespace-nowrap font-serif text-[12px] tracking-wide text-amber-50/60 [text-shadow:0_1px_6px_rgba(0,0,0,0.95)]">
             {name}

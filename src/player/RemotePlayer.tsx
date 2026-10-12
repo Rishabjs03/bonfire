@@ -40,7 +40,7 @@ function RemotePlayer({ id, name, colors }: RemotePlayerInfo) {
 
   return (
     <group ref={group}>
-      <Character name={name} colors={colors} motion={motion} />
+      <Character playerId={id} name={name} colors={colors} motion={motion} />
     </group>
   )
 }

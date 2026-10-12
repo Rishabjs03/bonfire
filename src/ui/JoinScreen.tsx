@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useProgress } from '@react-three/drei'
+import { audioEngine } from '../audio/audioEngine'
 import { randomName } from '../lib/names'
 import { PALETTE } from '../lib/palette'
 import { joinFire } from '../net/useMultiplayer'
@@ -19,7 +20,9 @@ export function JoinScreen() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (ready) void joinFire(draft, colors)
+    if (!ready) return
+    audioEngine.start() // inside the click: browsers only allow audio after a user gesture
+    void joinFire(draft, colors)
   }
 
   return (

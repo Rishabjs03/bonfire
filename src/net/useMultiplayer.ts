@@ -4,17 +4,22 @@ import { NET } from '../config'
 import type { CharacterColors } from '../lib/palette'
 import { spawnLocalPlayer } from '../player/spawn'
 import { localRuntime, useGameStore, type RemotePlayerInfo } from '../store/gameStore'
-import { cleanName, encodeMove, parseMove, parsePresence, type PresenceMeta } from './protocol'
+import { useSocialStore, type EmoteKind } from '../store/socialStore'
+import { cleanChat, cleanName, encodeMove, parseChat, parseEmote, parseMove, parsePresence, type PresenceMeta } from './protocol'
 import { getRemote, remotes } from './remotes'
 import { supabase } from './supabase'
 
 const SEND_TICK = 50 // ms
 const STALE_CHECK = 2000 // ms
+export const CHAT_COOLDOWN = 2000 // ms between your own messages
+const EMOTE_COOLDOWN = 1000
+/** Per-sender floor when receiving, in case someone bypasses their client-side limit. */
+const RECEIVE_COOLDOWN = 1200
 
 /** This tab's identity for the session. */
 export const myId = crypto.randomUUID()
 
-if (import.meta.env.DEV) Object.assign(window, { __net: { myId, remotes, localRuntime, store: useGameStore } })
+if (import.meta.env.DEV) Object.assign(window, { __net: { myId, remotes, localRuntime, store: useGameStore, social: useSocialStore } })
 
 let channel: RealtimeChannel | null = null
 let meta: PresenceMeta | null = null
@@ -84,6 +89,50 @@ function handleMove(payload: unknown) {
   r.moving = m.moving
   r.sitting = m.sitting
   r.lastHeard = now
+}
+
+const lastHeardSocial = new Map<string, number>()
+function allowFrom(id: string, kind: string) {
+  const key = `${kind}:${id}`
+  const now = Date.now()
+  if (now - (lastHeardSocial.get(key) ?? 0) < RECEIVE_COOLDOWN) return false
+  lastHeardSocial.set(key, now)
+  return true
+}
+
+function handleChat(payload: unknown) {
+  const m = parseChat(payload)
+  if (!m || m.id === myId || !remotes.has(m.id) || !allowFrom(m.id, 'chat')) return
+  useSocialStore.getState().showBubble(m.id, m.text)
+}
+
+function handleEmote(payload: unknown) {
+  const m = parseEmote(payload)
+  if (!m || m.id === myId || !remotes.has(m.id) || !allowFrom(m.id, 'emote')) return
+  useSocialStore.getState().showEmote(m.id, m.kind)
+}
+
+let lastChat = 0
+let lastEmote = 0
+
+/** Milliseconds until you may chat again (0 = now). */
+export const chatCooldownLeft = () => Math.max(0, CHAT_COOLDOWN - (Date.now() - lastChat))
+
+/** Say something: a bubble over your head for everyone. Returns false if rate limited or empty. */
+export function sendChat(raw: string) {
+  const text = cleanChat(raw)
+  if (!text || chatCooldownLeft() > 0 || store.getState().phase !== 'joined') return false
+  lastChat = Date.now()
+  useSocialStore.getState().showBubble(myId, text)
+  if (channel && store.getState().onlineCount > 1) void channel.send({ type: 'broadcast', event: 'chat', payload: { id: myId, text } })
+  return true
+}
+
+export function sendEmote(kind: EmoteKind) {
+  if (Date.now() - lastEmote < EMOTE_COOLDOWN || store.getState().phase !== 'joined') return
+  lastEmote = Date.now()
+  useSocialStore.getState().showEmote(myId, kind)
+  if (channel && store.getState().onlineCount > 1) void channel.send({ type: 'broadcast', event: 'emote', payload: { id: myId, kind } })
 }
 
 function restingMeta(): PresenceMeta | null {
@@ -196,6 +245,8 @@ export function useMultiplayer() {
     channel = ch
     ch.on('presence', { event: 'sync' }, handleSync)
     ch.on('broadcast', { event: 'move' }, ({ payload }) => handleMove(payload))
+    ch.on('broadcast', { event: 'chat' }, ({ payload }) => handleChat(payload))
+    ch.on('broadcast', { event: 'emote' }, ({ payload }) => handleEmote(payload))
     ch.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         store.setState({ netStatus: 'online' })

@@ -6,6 +6,7 @@ import { clamp, damp, lerpAngle } from '../lib/math'
 import { heightAt } from '../lib/terrain'
 import { localRuntime, useGameStore } from '../store/gameStore'
 import { Character } from './Character'
+import { myId } from '../net/useMultiplayer'
 import { createMotionState } from './motion'
 import { spawnLocalPlayer } from './spawn'
 import { resolveCollisions } from './collision'
@@ -81,7 +82,7 @@ export function LocalPlayer() {
 
   return (
     <group ref={group}>
-      <Character name={name} colors={colors} motion={motion} />
+      <Character playerId={myId} name={name} colors={colors} motion={motion} />
     </group>
   )
 }

@@ -20,3 +20,25 @@ canvas {
   touch-action: none;
   display: block;
 }
+
+/* Speech bubbles: fade in, hold, drift up and fade out over 5s. */
+@keyframes bubble {
+  0% { opacity: 0; transform: translateY(6px) scale(0.96); }
+  6% { opacity: 1; transform: translateY(0) scale(1); }
+  88% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+.animate-bubble { animation: bubble 5s ease-out forwards; }
+
+/* Emotes: float up and fade over ~2.6s. */
+@keyframes emote {
+  0% { opacity: 0; transform: translateY(10px) scale(0.6); }
+  15% { opacity: 1; transform: translateY(0) scale(1.1); }
+  25% { transform: translateY(-2px) scale(1); }
+  100% { opacity: 0; transform: translateY(-34px) scale(0.9); }
+}
+.animate-emote { animation: emote 2.6s ease-out forwards; display: inline-block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-bubble, .animate-emote { animation-duration: 0.01s; animation-fill-mode: both; }
+}

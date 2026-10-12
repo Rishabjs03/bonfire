@@ -25,6 +25,8 @@ interface GameState {
   /** Players tracked in presence, including you once joined. */
   onlineCount: number
   players: Record<string, RemotePlayerInfo>
+  chatOpen: boolean
+  setChatOpen: (open: boolean) => void
   setName: (name: string) => void
   setColors: (colors: CharacterColors) => void
   setSitting: (sitting: boolean) => void
@@ -38,6 +40,8 @@ export const useGameStore = create<GameState>((set) => ({
   netStatus: 'connecting',
   onlineCount: 0,
   players: {},
+  chatOpen: false,
+  setChatOpen: (chatOpen) => set({ chatOpen }),
   setName: (name) => set({ name }),
   setColors: (colors) => set({ colors }),
   setSitting: (sitting) => set({ sitting }),

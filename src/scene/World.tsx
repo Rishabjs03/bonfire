@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { AudioDriver } from '../audio/AudioDriver'
 import { FOG } from '../config'
 import { enabled } from '../lib/debug'
 import { CameraRig } from '../player/CameraRig'
@@ -28,6 +29,7 @@ export function World() {
         {joined && <LocalPlayer />}
         <RemotePlayers />
         <CameraRig />
+        <AudioDriver />
         {enabled('post') && <Effects />}
       </Suspense>
     </>
