@@ -15,6 +15,7 @@ import { Ground } from './Ground'
 import { Sky } from './Sky'
 import { Grass } from './Grass'
 import { Rocks } from './Rocks'
+import { Wildlife } from './Wildlife'
 import { Trees } from './Trees'
 
 export function World() {
@@ -31,6 +32,7 @@ export function World() {
         <Camp />
         {enabled('grass') && <Grass />}
         {enabled('rocks') && <Rocks />}
+        {enabled('wildlife') && <Wildlife />}
         {joined && <LocalPlayer />}
         <RemotePlayers />
         <CameraRig />

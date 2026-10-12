@@ -60,3 +60,4 @@ export const WOODPILE = (() => {
   const a = viewAngle + Math.PI * 0.72
   return { x: Math.sin(a) * 5.4, z: Math.cos(a) * 5.4, rotY: a }
 })()
+

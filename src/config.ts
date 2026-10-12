@@ -114,6 +114,12 @@ export const CAMERA = {
   fov: 50,
   near: 0.08,
   far: 2800,
+  // Looking around is deliberately slow and heavy: input steers a target that the view eases toward.
+  lookDrag: 4.5, // per second; lower = more lag after a swipe or drag
+  dragSensitivity: 0.0032, // radians per pixel of mouse / touch drag
+  swipeYaw: 0.0028, // radians per pixel of two-finger swipe
+  swipePitch: 0.0019,
+  orbitSpeed: 1.3, // radians per second from Q / E
 }
 
 export const NET = {
@@ -132,3 +138,35 @@ export const NET = {
   interpolationMax: 2500,
 }
 
+
+/** Things to do with your hands while sitting on a log: see src/player/activity.ts. */
+export const ACTIVITY = {
+  /** Marshmallow doneness, seconds over the fire. */
+  goldenAt: 5,
+  brownAt: 11,
+  burntAt: 17,
+  stickLength: 1.15,
+}
+
+export const WILDLIFE = {
+  cows: 6,
+  cowMinRadius: 35, // metres from the fire: the far meadow
+  cowMaxRadius: 75,
+  cowRoam: 8, // how far a cow wanders from its spot before turning back
+  cowWalkSpeed: 0.4, // m/s
+  grazeMin: 8, // seconds head-down in the grass
+  grazeMax: 25,
+  walkMin: 4, // seconds of ambling between grazing spells
+  walkMax: 10,
+  marmots: 1,
+  marmotRockMin: 15, // a big boulder this far from the fire
+  marmotRockMax: 35,
+  marmotAlarmSprint: 9, // metres: someone sprinting this close scares it
+  marmotAlarmSpeed: 3, // m/s counts as sprinting
+  marmotAlarmAny: 4, // metres: anyone this close scares it
+  marmotBoltSpeed: 3.2, // m/s to the burrow
+  burrowMin: 6, // metres from the rock
+  burrowMax: 10,
+  marmotReturnMin: 40, // seconds underground before it dares come back
+  marmotReturnMax: 90,
+}

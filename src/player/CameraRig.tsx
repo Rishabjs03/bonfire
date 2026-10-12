@@ -9,9 +9,6 @@ import { localRuntime, useGameStore } from '../store/gameStore'
 import { readOrbitInput } from './useControls'
 
 const TOP_VIEW = import.meta.env.DEV && new URLSearchParams(window.location.search).get('cam') === 'top'
-const DRAG_SENSITIVITY = 0.005
-const SWIPE_YAW = 0.0045 // per pixel of two-finger swipe
-const SWIPE_PITCH = 0.003
 const PITCH_MIN = -0.32
 const PITCH_MAX = 0.85
 const ZOOM_MIN = 0.45
@@ -34,9 +31,7 @@ function introShot(camera: Camera, t: number, dt: number, look: Vector3, initial
   look.lerp(introLook, damp(1.5, dt))
   camera.lookAt(look)
 }
-const ORBIT_SPEED = 1.8
-
-/** Third-person follow camera. Drag (or Q/E) to orbit around the player. */
+/** Third-person follow camera. Drag, swipe or Q/E steer a look target; the view eases toward it with a little drag. */
 export function CameraRig() {
   const gl = useThree((s) => s.gl)
   const desired = useRef(new Vector3())
@@ -53,7 +48,7 @@ export function CameraRig() {
     }
     const move = (e: PointerEvent) => {
       if (dragging !== e.pointerId) return
-      localRuntime.cameraYaw -= (e.clientX - lastX) * DRAG_SENSITIVITY
+      localRuntime.lookYaw -= (e.clientX - lastX) * CAMERA.dragSensitivity
       lastX = e.clientX
     }
     const up = (e: PointerEvent) => {
@@ -68,10 +63,10 @@ export function CameraRig() {
       const mouseWheel = e.deltaMode !== 0 || (e.deltaX === 0 && Math.abs(e.deltaY) >= 50 && Number.isInteger(e.deltaY))
       if (e.ctrlKey || mouseWheel) {
         const factor = Math.exp((e.ctrlKey ? e.deltaY * 0.012 : Math.sign(e.deltaY) * 0.12))
-        rt.cameraZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, rt.cameraZoom * factor))
+        rt.lookZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, rt.lookZoom * factor))
       } else {
-        rt.cameraYaw -= e.deltaX * SWIPE_YAW
-        rt.cameraPitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, rt.cameraPitch + e.deltaY * SWIPE_PITCH))
+        rt.lookYaw -= e.deltaX * CAMERA.swipeYaw
+        rt.lookPitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, rt.lookPitch + e.deltaY * CAMERA.swipePitch))
       }
     }
     el.addEventListener('wheel', wheel, { passive: false })
@@ -102,7 +97,12 @@ export function CameraRig() {
       initialized.current = true
       return
     }
-    rt.cameraYaw += readOrbitInput() * ORBIT_SPEED * dt
+    rt.lookYaw += readOrbitInput() * CAMERA.orbitSpeed * dt
+    // The view trails the look target: a swipe lands softly instead of snapping.
+    const ease = damp(CAMERA.lookDrag, dt)
+    rt.cameraYaw += (rt.lookYaw - rt.cameraYaw) * ease
+    rt.cameraPitch += (rt.lookPitch - rt.cameraPitch) * ease
+    rt.cameraZoom += (rt.lookZoom - rt.cameraZoom) * ease
 
     const p = rt.position
     const nearFire = 1 - smoothstep(CAMERA.nearFireRadius, CAMERA.nearFireRadius + 5, Math.hypot(p.x, p.z))

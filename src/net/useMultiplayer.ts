@@ -5,8 +5,8 @@ import type { CharacterColors } from '../lib/palette'
 import type { LookId } from '../player/people'
 import { spawnLocalPlayer } from '../player/spawn'
 import { localRuntime, useGameStore, type RemotePlayerInfo } from '../store/gameStore'
-import { useSocialStore, type EmoteKind } from '../store/socialStore'
-import { cleanChat, cleanName, encodeMove, parseChat, parseEmote, parseMove, parsePresence, type PresenceMeta } from './protocol'
+import { useSocialStore, type ActKind, type EmoteKind } from '../store/socialStore'
+import { cleanChat, cleanName, encodeMove, parseAct, parseChat, parseEmote, parseMove, parsePresence, type PresenceMeta } from './protocol'
 import { getRemote, remotes } from './remotes'
 import { supabase } from './supabase'
 
@@ -16,6 +16,8 @@ export const CHAT_COOLDOWN = 2000 // ms between your own messages
 const EMOTE_COOLDOWN = 1000
 /** Per-sender floor when receiving, in case someone bypasses their client-side limit. */
 const RECEIVE_COOLDOWN = 1200
+/** Picking up / putting down the stick: short, so a quick tap still registers both ends. */
+const ACT_COOLDOWN = 300
 
 /** This tab's identity for the session. */
 export const myId = crypto.randomUUID()
@@ -55,6 +57,7 @@ function handleSync() {
 
   const players: Record<string, RemotePlayerInfo> = {}
   const now = performance.now()
+  const social = useSocialStore.getState()
   for (const m of metas) {
     if (m.id === myId) continue
     players[m.id] = { id: m.id, name: m.name, colors: m.colors, look: m.look }
@@ -68,8 +71,15 @@ function handleSync() {
     r.sitting = m.sitting
     r.moving = false
     r.lastHeard = now
+    // Presence also carries what their hands are doing, so late joiners see the marshmallows.
+    social.setAct(m.id, m.act, m.actAt)
   }
-  for (const id of remotes.keys()) if (!players[id]) remotes.delete(id)
+  for (const id of remotes.keys()) {
+    if (!players[id]) {
+      remotes.delete(id)
+      social.clearAct(id)
+    }
+  }
 
   // Avoid re-rendering the player list unless membership or a profile changed.
   const prev = store.getState().players
@@ -97,10 +107,10 @@ function handleMove(payload: unknown) {
 }
 
 const lastHeardSocial = new Map<string, number>()
-function allowFrom(id: string, kind: string) {
+function allowFrom(id: string, kind: string, cooldown = RECEIVE_COOLDOWN) {
   const key = `${kind}:${id}`
   const now = Date.now()
-  if (now - (lastHeardSocial.get(key) ?? 0) < RECEIVE_COOLDOWN) return false
+  if (now - (lastHeardSocial.get(key) ?? 0) < cooldown) return false
   lastHeardSocial.set(key, now)
   return true
 }
@@ -117,8 +127,15 @@ function handleEmote(payload: unknown) {
   useSocialStore.getState().showEmote(m.id, m.kind)
 }
 
+function handleAct(payload: unknown) {
+  const m = parseAct(payload)
+  if (!m || m.id === myId || !remotes.has(m.id) || !allowFrom(m.id, 'act', ACT_COOLDOWN)) return
+  useSocialStore.getState().setAct(m.id, m.kind, m.at)
+}
+
 let lastChat = 0
 let lastEmote = 0
+let lastAct = 0
 
 /** Milliseconds until you may chat again (0 = now). */
 export const chatCooldownLeft = () => Math.max(0, CHAT_COOLDOWN - (Date.now() - lastChat))
@@ -138,6 +155,26 @@ export function sendEmote(kind: EmoteKind) {
   lastEmote = Date.now()
   useSocialStore.getState().showEmote(myId, kind)
   if (channel && store.getState().onlineCount > 1) void channel.send({ type: 'broadcast', event: 'emote', payload: { id: myId, kind } })
+}
+
+/** Milliseconds until you may change what your hands are doing again (0 = now). */
+export const actCooldownLeft = () => Math.max(0, ACT_COOLDOWN - (Date.now() - lastAct))
+
+/**
+ * Pick up or put down the marshmallow stick. Shown to you at once, broadcast to the
+ * others, and written into presence so late joiners see it too.
+ */
+export function sendAct(kind: ActKind) {
+  if (actCooldownLeft() > 0 || store.getState().phase !== 'joined') return false
+  lastAct = Date.now()
+  const at = lastAct
+  useSocialStore.getState().setAct(myId, kind, at)
+  if (meta) {
+    meta = { ...meta, act: kind, actAt: at }
+    if (channel && store.getState().netStatus === 'online') void channel.track(restingMeta() ?? meta)
+  }
+  if (channel && store.getState().onlineCount > 1) void channel.send({ type: 'broadcast', event: 'act', payload: { id: myId, kind, at } })
+  return true
 }
 
 function restingMeta(): PresenceMeta | null {
@@ -232,6 +269,8 @@ export async function joinFire(name: string, colors: CharacterColors, look: Look
     z: localRuntime.position.z,
     rotY: localRuntime.rotY,
     sitting: false,
+    act: 'none',
+    actAt: Date.now(),
   }
   store.setState({ phase: 'joined' })
   if (channel && netStatus === 'online') await channel.track(meta)
@@ -253,6 +292,7 @@ export function useMultiplayer() {
     ch.on('broadcast', { event: 'move' }, ({ payload }) => handleMove(payload))
     ch.on('broadcast', { event: 'chat' }, ({ payload }) => handleChat(payload))
     ch.on('broadcast', { event: 'emote' }, ({ payload }) => handleEmote(payload))
+    ch.on('broadcast', { event: 'act' }, ({ payload }) => handleAct(payload))
     ch.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         store.setState({ netStatus: 'online' })

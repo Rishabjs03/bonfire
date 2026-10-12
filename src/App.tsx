@@ -4,6 +4,7 @@ import { CAMERA, POST } from './config'
 import { useMultiplayer } from './net/useMultiplayer'
 import { useKeyboardControls } from './player/useControls'
 import { DISTANT_LAYER, FAR_LAYER } from './scene/layers'
+import { Capture } from './scene/Capture'
 import { World } from './scene/World'
 import { useGameStore } from './store/gameStore'
 import { useQuality } from './store/quality'
@@ -17,6 +18,7 @@ import { isTouchDevice } from './ui/isTouch'
 import { TouchControls } from './ui/Joystick'
 import { MuteButton } from './ui/MuteButton'
 import { OnlineCounter } from './ui/OnlineCounter'
+import { PostcardButton } from './ui/PostcardButton'
 import { useHotkeys } from './ui/useHotkeys'
 
 export default function App() {
@@ -53,12 +55,14 @@ export default function App() {
         >
           <World />
         </PerformanceMonitor>
+        <Capture />
       </Canvas>
       <div ref={labelLayerRef} className="pointer-events-none absolute inset-0 overflow-hidden" />
       {phase === 'joined' && (
         <>
           <HUD />
           <OnlineCounter />
+          <PostcardButton />
           <ChatInput />
           <RadioPrompt />
           <RadioPanel />

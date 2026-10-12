@@ -27,6 +27,7 @@ import { useSocialStore } from '../store/socialStore'
 import { labelLayerRef } from '../ui/labelLayer'
 import type { MotionState } from './motion'
 import { dressBody } from './garments'
+import { HeldItems } from './HeldItems'
 import { PlayerOverlays } from './Overlays'
 import { CLIPS, LOOKS, PEOPLE_URLS, type Body, type LookId } from './people'
 
@@ -148,6 +149,8 @@ interface Rig {
   root: Object3D
   mixer: AnimationMixer
   actions: Partial<Record<keyof typeof CLIPS, AnimationAction>>
+  /** Bones that props attach to. */
+  bones: { handR?: Bone }
 }
 
 const clipCache = new Map<Body, AnimationClip[]>()
@@ -221,7 +224,7 @@ function buildRig(body: Body, bodyScene: Object3D, hairScenes: Object3D[], clips
     a.setEffectiveWeight(key === 'idle' ? 1 : 0)
     actions[key] = a
   }
-  return { root, mixer, actions }
+  return { root, mixer, actions, bones: { handR: bonesByName.get('hand_r') } }
 }
 
 // ------------------------------------------------------------------ component
@@ -317,7 +320,7 @@ export function Character({ playerId, name, look, colors, motion, children }: Ch
       if (emote.value === 'wave') actions.wave?.reset().play()
     }
     const waving = emote?.value === 'wave' && Date.now() - emote.at < 1900 && s.mode === 'stand'
-    const dancing = emote?.value === 'heart' && Date.now() - emote.at < 2500 && s.mode === 'stand'
+    const dancing = emote?.value === 'dance' && Date.now() - emote.at < 4000 && s.mode === 'stand'
 
     // locomotion blend by ground speed: idle → walk → sprint
     const v = m.speed
@@ -355,6 +358,7 @@ export function Character({ playerId, name, look, colors, motion, children }: Ch
   return (
     <group>
       <primitive object={rig.root} />
+      <HeldItems playerId={playerId} handR={rig.bones.handR} />
       <Html position={[0, 2.12, 0]} center distanceFactor={7} zIndexRange={[5, 0]} portal={labelLayerRef as RefObject<HTMLElement>}>
         <div className="flex flex-col items-center gap-1 select-none">
           <PlayerOverlays id={playerId} />

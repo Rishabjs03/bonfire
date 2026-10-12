@@ -23,6 +23,8 @@ interface GameState {
   colors: CharacterColors
   look: LookId
   sitting: boolean
+  /** Actually sitting on a log (not just warming up near the fire). */
+  seated: boolean
   phase: Phase
   netStatus: NetStatus
   /** Players tracked in presence, including you once joined. */
@@ -34,6 +36,7 @@ interface GameState {
   setColors: (colors: CharacterColors) => void
   setLook: (look: LookId) => void
   setSitting: (sitting: boolean) => void
+  setSeated: (seated: boolean) => void
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -41,6 +44,7 @@ export const useGameStore = create<GameState>((set) => ({
   colors: pick(PALETTE),
   look: pick(LOOK_IDS),
   sitting: false,
+  seated: false,
   phase: 'lobby',
   netStatus: 'connecting',
   onlineCount: 0,
@@ -51,6 +55,7 @@ export const useGameStore = create<GameState>((set) => ({
   setColors: (colors) => set({ colors }),
   setLook: (look) => set({ look }),
   setSitting: (sitting) => set({ sitting }),
+  setSeated: (seated) => set({ seated }),
 }))
 
 /**
@@ -69,5 +74,9 @@ export const localRuntime = {
   cameraPitch: 0,
   /** Camera distance multiplier (pinch / wheel). */
   cameraZoom: 1,
+  /** Where look input is steering the view; the camera values above ease toward these. */
+  lookYaw: 0,
+  lookPitch: 0,
+  lookZoom: 1,
   spawned: false,
 }

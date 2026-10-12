@@ -12,7 +12,7 @@ const EMOTE_BY_KEY = Object.fromEntries(
   (Object.entries(EMOTES) as [EmoteKind, (typeof EMOTES)[EmoteKind]][]).map(([kind, e]) => [`Digit${e.key}`, kind]),
 ) as Record<string, EmoteKind>
 
-/** Enter to chat, M to mute, 1–4 to emote. Ignored while typing. */
+/** Enter to chat, M to mute, 1–5 to emote. Ignored while typing. */
 export function useHotkeys() {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {

@@ -15,6 +15,7 @@ export function spawnLocalPlayer() {
   rt.velocity.set(0, 0, 0)
   rt.rotY = Math.atan2(-rt.position.x, -rt.position.z)
   rt.cameraYaw = rt.rotY
+  rt.lookYaw = rt.rotY
   rt.sitting = false
   rt.moving = false
   rt.spawned = true

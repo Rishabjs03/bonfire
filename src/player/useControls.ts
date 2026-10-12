@@ -61,3 +61,9 @@ export const isSprintHeld = () => has('ShiftLeft', 'ShiftRight')
 
 /** Camera orbit from Q/E: -1, 0 or 1. */
 export const readOrbitInput = () => (has('KeyQ') ? 1 : 0) - (has('KeyE') ? 1 : 0)
+
+/** The on-screen "hold to roast" button (touch). */
+export const touchHold = { roast: false }
+
+/** Holding F (or the touch button) while seated roasts a marshmallow. */
+export const isRoastHeld = () => has('KeyF') || touchHold.roast

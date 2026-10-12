@@ -1,7 +1,7 @@
 import { WORLD } from '../config'
 import { PALETTE, type CharacterColors } from '../lib/palette'
 import { filterProfanity } from '../lib/profanity'
-import { EMOTES, type EmoteKind } from '../store/socialStore'
+import { EMOTES, isActKind, type ActKind, type EmoteKind } from '../store/socialStore'
 import { isLookId, type LookId } from '../player/people'
 
 /** Presence metadata: who someone is, plus where they last came to rest. */
@@ -15,6 +15,9 @@ export interface PresenceMeta {
   z: number
   rotY: number
   sitting: boolean
+  /** Hands: roasting a marshmallow or free; `actAt` is when that started (sender's clock). */
+  act: ActKind
+  actAt: number
 }
 
 /** Broadcast while walking. */
@@ -40,6 +43,20 @@ export interface ChatMessage {
 export interface EmoteMessage {
   id: string
   kind: EmoteKind
+}
+
+/** Sent when someone picks up or puts down the marshmallow stick. */
+export interface ActMessage {
+  id: string
+  kind: ActKind
+  at: number
+}
+
+/** A start time from another clock, kept within a sane window of ours. */
+export function cleanActAt(v: unknown) {
+  const now = Date.now()
+  const t = typeof v === 'number' && Number.isFinite(v) ? v : now
+  return Math.max(now - 120_000, Math.min(now + 5_000, t))
 }
 
 const round = (n: number) => Math.round(n * 100) / 100
@@ -93,6 +110,8 @@ export function parsePresence(p: unknown): PresenceMeta | null {
     z: num(p.z, bound) ?? 0,
     rotY: num(p.rotY, 100) ?? 0,
     sitting: p.sitting === true,
+    act: isActKind(p.act) ? p.act : 'none',
+    actAt: cleanActAt(p.actAt),
   }
 }
 
@@ -105,4 +124,9 @@ export function parseChat(p: unknown): ChatMessage | null {
 export function parseEmote(p: unknown): EmoteMessage | null {
   if (!isObject(p) || typeof p.id !== 'string' || p.id.length > 64) return null
   return typeof p.kind === 'string' && p.kind in EMOTES ? { id: p.id, kind: p.kind as EmoteKind } : null
+}
+
+export function parseAct(p: unknown): ActMessage | null {
+  if (!isObject(p) || typeof p.id !== 'string' || p.id.length > 64 || !isActKind(p.kind)) return null
+  return { id: p.id, kind: p.kind, at: cleanActAt(p.at) }
 }

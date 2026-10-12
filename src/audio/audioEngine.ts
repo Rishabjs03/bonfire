@@ -54,6 +54,7 @@ class AudioEngine {
   private windPan!: StereoPannerNode
   private stepsOut!: GainNode
   private ambientOut!: GainNode
+  private sizzle!: GainNode
   private echo!: DelayNode
   private white!: AudioBuffer
   private nearness = 0
@@ -162,6 +163,19 @@ class AudioEngine {
     this.echo.connect(echoTone).connect(echoFeedback).connect(this.echo)
     echoTone.connect(this.ambientOut)
 
+    // --- a marshmallow sizzling over the fire -----------------------------------------
+    const sizzleSrc = ctx.createBufferSource()
+    sizzleSrc.buffer = this.white
+    sizzleSrc.loop = true
+    const sizzleFilter = ctx.createBiquadFilter()
+    sizzleFilter.type = 'bandpass'
+    sizzleFilter.frequency.value = 5200
+    sizzleFilter.Q.value = 0.9
+    this.sizzle = ctx.createGain()
+    this.sizzle.gain.value = 0
+    sizzleSrc.connect(sizzleFilter).connect(this.sizzle).connect(this.master)
+    sizzleSrc.start()
+
     this.scheduleCrackle()
     this.scheduleGust()
     for (let i = 0; i < 4; i++) this.scheduleCricket(i)
@@ -236,6 +250,36 @@ class AudioEngine {
     tg.gain.exponentialRampToValueAtTime(0.001, t + 0.12)
     thump.connect(lp).connect(tg).connect(this.stepsOut)
     thump.start(t + 0.04, Math.random(), 0.12)
+  }
+
+  /** A marmot's alarm call: a piercing two-note whistle from the rocks, echoing off the valley. */
+  marmotWhistle(pan: number, distance: number) {
+    const ctx = this.ctx
+    if (!ctx || ctx.state !== 'running') return
+    const t0 = ctx.currentTime + 0.02
+    const level = ctx.createGain()
+    level.gain.value = 0.3 / (1 + distance / 12)
+    const panner = ctx.createStereoPanner()
+    panner.pan.value = Math.max(-1, Math.min(1, pan))
+    panner.connect(level)
+    level.connect(this.ambientOut)
+    level.connect(this.echo)
+    for (const [start, freq, dur] of [
+      [0, 2900, 0.16],
+      [0.21, 2450, 0.24],
+    ]) {
+      const osc = ctx.createOscillator()
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(freq * 1.08, t0 + start)
+      osc.frequency.exponentialRampToValueAtTime(freq, t0 + start + dur)
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0, t0 + start)
+      g.gain.linearRampToValueAtTime(1, t0 + start + 0.008)
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + start + dur)
+      osc.connect(g).connect(panner)
+      osc.start(t0 + start)
+      osc.stop(t0 + start + dur + 0.05)
+    }
   }
 
   /** A field cricket: bursts of 3–6 short pulses around 4–5 kHz, from somewhere in the meadow. */
@@ -359,6 +403,12 @@ class AudioEngine {
     this.windFilter.frequency.setTargetAtTime(420 + strength * 700, t, dur / 3)
     this.windPan.pan.setTargetAtTime((Math.random() - 0.5) * 1.2, t, dur / 2)
     this.timers.push(window.setTimeout(() => this.scheduleGust(), dur * 1000))
+  }
+
+  /** Your own marshmallow over the flames: 0 silent .. 1 full sizzle. */
+  setSizzle(level: number) {
+    if (!this.ctx || this.ctx.state !== 'running') return
+    this.sizzle.gain.setTargetAtTime(Math.max(0, Math.min(1, level)) * 0.035, this.ctx.currentTime, 0.2)
   }
 
   /** How close you are to the fire, 0..1 (used for other cozy cues). */

@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent } from 'react'
-import { joystick } from '../player/useControls'
+import { joystick, touchHold } from '../player/useControls'
 import { useGameStore } from '../store/gameStore'
 import { EMOTES, type EmoteKind } from '../store/socialStore'
 import { sendEmote } from '../net/useMultiplayer'
@@ -11,6 +11,7 @@ export function TouchControls() {
   const [knob, setKnob] = useState({ x: 0, y: 0 })
   const origin = useRef<{ x: number; y: number; id: number } | null>(null)
   const setChatOpen = useGameStore((s) => s.setChatOpen)
+  const seated = useGameStore((s) => s.seated)
 
   const move = (e: PointerEvent) => {
     const o = origin.current
@@ -56,6 +57,24 @@ export function TouchControls() {
         />
       </div>
       <div className="absolute bottom-10 right-6 z-10 flex flex-col items-end gap-2">
+        {seated && (
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.currentTarget.setPointerCapture(e.pointerId)
+                touchHold.roast = true
+              }}
+              onPointerUp={() => (touchHold.roast = false)}
+              onPointerCancel={() => (touchHold.roast = false)}
+              onContextMenu={(e) => e.preventDefault()}
+              aria-label="Hold to roast a marshmallow"
+              className="panel flex h-10 touch-none select-none items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium text-ink"
+            >
+              <span aria-hidden>🔥</span> hold to roast
+            </button>
+          </div>
+        )}
         <div className="flex gap-1.5">
           {(Object.keys(EMOTES) as EmoteKind[]).map((k) => (
             <button

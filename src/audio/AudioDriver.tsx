@@ -2,8 +2,11 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector3 } from 'three'
 import { PLAYER } from '../config'
+import { myId } from '../net/useMultiplayer'
+import { doneness } from '../player/activity'
 import { fireState } from '../scene/fireState'
 import { localRuntime, useGameStore } from '../store/gameStore'
+import { useSocialStore } from '../store/socialStore'
 import { audioEngine } from './audioEngine'
 
 const STEP_LENGTH = 0.72 // metres per footstep
@@ -23,6 +26,10 @@ export function AudioDriver() {
     right.set(1, 0, 0).applyQuaternion(camera.quaternion)
     const pan = dist > 0.01 ? (dx * right.x + dz * right.z) / dist : 0
     audioEngine.update({ fireDistance: dist, firePan: pan, flicker: fireState.flicker })
+
+    // your marshmallow sizzles once it's warm
+    const mine = useSocialStore.getState().acts[myId]
+    audioEngine.setSizzle(mine?.value === 'roast' ? Math.min(1, Math.max(0, doneness(mine.at) - 0.5)) : 0)
 
     if (joined) {
       const p = localRuntime.position

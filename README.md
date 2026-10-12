@@ -45,11 +45,18 @@ Without `.env.local` the site still runs; you'll just be alone at the fire.
 | two-finger swipe (trackpad) | look around; pinch to zoom. Mouse: drag to look, wheel to zoom. Q/E also turn |
 | stop by a log bench | sit down on it, facing the fire |
 | R (on a log, or by the radio) | the radio: internet radio stations, or paste a Spotify / YouTube link. Plays only for you |
+| F (hold, on a log) | roast a marshmallow over the fire: it browns, then burns if you hold it too long. Everyone sees it |
 | Enter | chat (80 characters, a bubble for ~5 s) |
-| 1–4 | wave · warm hands · sleepy · heart |
+| 1–5 | wave · warm hands · sleepy · heart · dance |
 | M | mute (remembered) |
 
-On touch screens: a thumbstick, plus chat and emote buttons.
+On touch screens: a thumbstick, chat and emote buttons, and a "hold to roast" button while you're on a log.
+
+## Share
+
+The camera button (or `P`) takes a postcard: the current view with your name, the place and
+the date in the corner, shared via the system share sheet on phones or downloaded as a PNG.
+`public/og.jpg` is the preview a shared link shows; replace it with a nicer shot any time.
 
 ## Performance
 
@@ -76,7 +83,7 @@ Every feel-related number (fog, light flicker, walking speed, sit distance, came
 network rates, room cap) lives in [`src/config.ts`](src/config.ts).
 
 In development you can switch features off to profile, e.g.
-`http://localhost:5173/?off=flames,smoke,ao,trees,grass,terrain,farforest,rocks,post,audio`.
+`http://localhost:5173/?off=flames,smoke,ao,trees,grass,terrain,farforest,rocks,wildlife,post,audio`.
 
 ## Music
 

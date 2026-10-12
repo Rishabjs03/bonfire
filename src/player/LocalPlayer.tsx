@@ -9,6 +9,7 @@ import { myId } from '../net/useMultiplayer'
 import { remotes } from '../net/remotes'
 import { localRuntime, useGameStore } from '../store/gameStore'
 import { useRadioStore } from '../store/radioStore'
+import { syncLocalAct } from './activity'
 import { Character } from './Character'
 import { resolveCollisions } from './collision'
 import { createMotionState } from './motion'
@@ -93,7 +94,10 @@ export function LocalPlayer() {
     pos.y = heightAt(pos.x, pos.z)
 
     rt.speed = Math.hypot(vel.x, vel.z)
-    rt.moving = rt.speed > 0.15
+    // Gliding onto a seat counts as moving, so the last step is broadcast and the resting
+    // pose others receive is on the log rather than wherever you stopped beside it.
+    const settling = rt.sitting && !!seat.current && Math.hypot(seat.current.x - pos.x, seat.current.z - pos.z) > 0.03
+    rt.moving = rt.speed > 0.15 || settling
 
     // Stop by a free seat on a log for a moment and you sit down on it.
     const distToFire = Math.hypot(pos.x, pos.z)
@@ -125,6 +129,8 @@ export function LocalPlayer() {
 
     const store = useGameStore.getState()
     if (store.sitting !== warm) store.setSitting(warm)
+    if (store.seated !== rt.sitting) store.setSeated(rt.sitting)
+    syncLocalAct() // F held on a log roasts; standing up withdraws the stick
     // Anyone sitting on a log can reach the radio; otherwise walk up to it.
     const near = rt.sitting || Math.hypot(pos.x - RADIO.x, pos.z - RADIO.z) < RADIO.reach
     if (useRadioStore.getState().near !== near) useRadioStore.setState({ near })
