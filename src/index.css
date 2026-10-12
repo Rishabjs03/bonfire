@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #05070d;
+  color: #f3e9dc;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+canvas {
+  touch-action: none;
+  display: block;
+}
