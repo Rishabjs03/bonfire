@@ -3,16 +3,15 @@ export interface CharacterColors {
   hat: string
 }
 
-/** Curated cozy palette: knitwear and woodsmoke. */
+/** Real outdoor-gear colours: parka body + scarf/mitten accent. */
 export const PALETTE: readonly CharacterColors[] = [
-  { body: '#c8553d', hat: '#f2e8cf' }, // rust + cream
-  { body: '#e0a458', hat: '#7a4b3a' }, // mustard + chestnut
-  { body: '#588b8b', hat: '#ffd5a8' }, // teal + apricot
-  { body: '#8e6c8a', hat: '#f4c095' }, // plum + peach
-  { body: '#5b7553', hat: '#e9c46a' }, // moss + honey
-  { body: '#d4a5a5', hat: '#5c4d7d' }, // rose + violet
-  { body: '#3d5a80', hat: '#ee6c4d' }, // denim + coral
-  { body: '#a44a3f', hat: '#2f4858' }, // brick + slate
+  { body: '#7a1f1f', hat: '#d9cbb5' }, // deep red + cream
+  { body: '#2f4a3a', hat: '#c79a4a' }, // forest green + mustard
+  { body: '#1f2b45', hat: '#b8442f' }, // navy + rust
+  { body: '#b8862f', hat: '#3a3a3a' }, // ochre + charcoal
+  { body: '#3c3f44', hat: '#a33a3a' }, // charcoal + red
+  { body: '#a24a1f', hat: '#2c3b4f' }, // burnt orange + slate
+  { body: '#2e5c63', hat: '#e0d6c2' }, // teal + cream
+  { body: '#4b2e45', hat: '#d1a35a' }, // plum + honey
 ]
 
-export const FACE_COLOR = '#f1d9c0'

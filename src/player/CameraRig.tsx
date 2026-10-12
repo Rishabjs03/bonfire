@@ -56,18 +56,20 @@ export function CameraRig() {
     const height = CAMERA.height + (CAMERA.nearFireHeight - CAMERA.height) * nearFire
 
     const d = desired.current
-    d.set(p.x - Math.sin(rt.cameraYaw) * dist, p.y + height, p.z - Math.cos(rt.cameraYaw) * dist)
+    const sx = -Math.cos(rt.cameraYaw) * CAMERA.shoulderOffset
+    const sz = Math.sin(rt.cameraYaw) * CAMERA.shoulderOffset
+    d.set(p.x - Math.sin(rt.cameraYaw) * dist + sx, p.y + height, p.z - Math.cos(rt.cameraYaw) * dist + sz)
     d.y = Math.max(d.y, heightAt(d.x, d.z) + 0.8)
 
     if (!initialized.current) {
       camera.position.copy(d)
-      look.current.set(p.x, p.y + CAMERA.lookHeight, p.z)
+      look.current.set(p.x + sx, p.y + CAMERA.lookHeight, p.z + sz)
       initialized.current = true
     } else {
       camera.position.lerp(d, damp(CAMERA.followLerp, dt))
-      look.current.x += (p.x - look.current.x) * damp(CAMERA.followLerp * 2, dt)
+      look.current.x += (p.x + sx - look.current.x) * damp(CAMERA.followLerp * 2, dt)
       look.current.y += (p.y + CAMERA.lookHeight - look.current.y) * damp(CAMERA.followLerp * 2, dt)
-      look.current.z += (p.z - look.current.z) * damp(CAMERA.followLerp * 2, dt)
+      look.current.z += (p.z + sz - look.current.z) * damp(CAMERA.followLerp * 2, dt)
     }
     camera.lookAt(look.current)
   }, -1)

@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group } from 'three'
-import { PLAYER, SITTING } from '../config'
+import { PLAYER, SITTING, VIEW_DIR } from '../config'
 import { clamp, damp, lerpAngle } from '../lib/math'
 import { heightAt } from '../lib/terrain'
 import { localRuntime, useGameStore } from '../store/gameStore'
@@ -14,7 +14,8 @@ const input = { x: 0, y: 0 }
 
 /** Place the player somewhere around the clearing, facing the fire. */
 function spawn() {
-  const angle = Math.random() * Math.PI * 2
+  // Opposite the Matterhorn (±35°), so the first view is the fire with the peak behind it.
+  const angle = Math.atan2(-VIEW_DIR.x, -VIEW_DIR.z) + (Math.random() - 0.5) * 0.5
   const r = PLAYER.spawnMinRadius + Math.random() * (PLAYER.spawnMaxRadius - PLAYER.spawnMinRadius)
   const rt = localRuntime
   rt.position.set(Math.sin(angle) * r, 0, Math.cos(angle) * r)

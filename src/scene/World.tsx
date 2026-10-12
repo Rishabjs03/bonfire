@@ -1,10 +1,12 @@
-import { COLORS, FOG } from '../config'
+import { Suspense } from 'react'
+import { FOG } from '../config'
+import { enabled } from '../lib/debug'
 import { CameraRig } from '../player/CameraRig'
 import { LocalPlayer } from '../player/LocalPlayer'
+import { AlpineTerrain } from './AlpineTerrain'
 import { Bonfire } from './Bonfire'
 import { Effects } from './Effects'
 import { Ground } from './Ground'
-import { Mountains } from './Mountains'
 import { Sky } from './Sky'
 import { Snow } from './Snow'
 import { Trees } from './Trees'
@@ -12,20 +14,18 @@ import { Trees } from './Trees'
 export function World() {
   return (
     <>
-      <color attach="background" args={[COLORS.background]} />
-      <fogExp2 attach="fog" args={[COLORS.background, FOG.density]} />
-
-      <Sky />
-      <Mountains />
-      <Ground />
-      <Trees />
-      <Bonfire />
-      <Snow />
-
-      <LocalPlayer />
-      <CameraRig />
-
-      <Effects />
+      <fogExp2 attach="fog" args={[FOG.color, FOG.density]} />
+      <Suspense fallback={null}>
+        <Sky />
+        {enabled('terrain') && <AlpineTerrain />}
+        <Ground />
+        {enabled('trees') && <Trees />}
+        <Bonfire />
+        {enabled('snow') && <Snow />}
+        <LocalPlayer />
+        <CameraRig />
+        {enabled('post') && <Effects />}
+      </Suspense>
     </>
   )
 }

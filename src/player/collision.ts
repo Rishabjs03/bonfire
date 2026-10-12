@@ -1,6 +1,6 @@
 import type { Vector3 } from 'three'
-import { FIRE, TREES, WORLD } from '../config'
-import { FOREST } from '../lib/forest'
+import { FIRE, WORLD } from '../config'
+import { FOREST, trunkRadius } from '../lib/forest'
 
 interface Circle {
   x: number
@@ -10,10 +10,10 @@ interface Circle {
 
 const OBSTACLES: Circle[] = [
   { x: 0, z: 0, r: FIRE.collisionRadius },
-  ...FOREST.map((t) => ({ x: t.x, z: t.z, r: TREES.trunkRadius * t.scale })),
+  ...FOREST.map((t) => ({ x: t.x, z: t.z, r: trunkRadius(t.height) * 1.6 })),
 ]
 
-/** Push a circle at `pos` (xz plane) out of trees and the fire, and softly back inside the world. */
+/** Push a circle at `pos` (xz plane) out of trunks and the fire, and softly back inside the world. */
 export function resolveCollisions(pos: Vector3, radius: number, dt: number) {
   for (let i = 0; i < OBSTACLES.length; i++) {
     const o = OBSTACLES[i]
