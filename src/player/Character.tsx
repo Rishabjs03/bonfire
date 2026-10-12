@@ -1,295 +1,365 @@
-import { useMemo, useRef, type ReactNode, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Html, useTexture } from '@react-three/drei'
+import { Html, useGLTF, useTexture } from '@react-three/drei'
 import {
-  CapsuleGeometry,
-  DoubleSide,
-  Group,
-  LatheGeometry,
+  AnimationClip,
+  AnimationMixer,
+  BufferAttribute,
+  Color,
+  LoopOnce,
+  Mesh,
   MeshStandardMaterial,
+  Object3D,
   RepeatWrapping,
-  SphereGeometry,
-  TorusGeometry,
-  Vector2,
+  Skeleton,
+  SkinnedMesh,
+  SRGBColorSpace,
+  type AnimationAction,
+  type Bone,
+  type BufferGeometry,
   type Texture,
 } from 'three'
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { damp } from '../lib/math'
 import type { CharacterColors } from '../lib/palette'
 import { ASSETS } from '../scene/assets'
-import { labelLayerRef } from '../ui/labelLayer'
 import { useSocialStore } from '../store/socialStore'
+import { labelLayerRef } from '../ui/labelLayer'
 import type { MotionState } from './motion'
+import { dressBody } from './garments'
 import { PlayerOverlays } from './Overlays'
+import { CLIPS, LOOKS, PEOPLE_URLS, type Body, type LookId } from './people'
 
-// --- Shared geometry (metres, origin at the feet, facing +z) -------------------------
+for (const b of ['male', 'female'] as Body[]) useGLTF.preload(PEOPLE_URLS.body(b))
+useGLTF.preload(PEOPLE_URLS.anims)
 
-/** Quilted puffer-jacket body: a lathe profile with baffles every ~11 cm. */
-function createParkaGeometry() {
-  const pts: Vector2[] = []
-  const profile: [number, number][] = [
-    [0.0, 0.6],
-    [0.215, 0.6],
-    [0.235, 0.64],
-    [0.232, 0.8],
-    [0.225, 0.9],
-    [0.236, 1.08],
-    [0.242, 1.24],
-    [0.225, 1.34],
-    [0.18, 1.41],
-    [0.125, 1.46],
-    [0.115, 1.5],
-    [0.0, 1.5],
-  ]
-  // Resample densely and add baffle bulges between y = 0.64 and 1.34.
-  for (let i = 0; i < profile.length - 1; i++) {
-    const [r0, y0] = profile[i]
-    const [r1, y1] = profile[i + 1]
-    const steps = Math.max(1, Math.round(Math.abs(y1 - y0) / 0.012))
-    for (let s = 0; s < steps; s++) {
-      const t = s / steps
-      const y = y0 + (y1 - y0) * t
-      let r = r0 + (r1 - r0) * t
-      if (y > 0.64 && y < 1.34 && r > 0.1) r += 0.011 * Math.pow(Math.abs(Math.sin(((y - 0.64) / 0.115) * Math.PI)), 0.6)
-      pts.push(new Vector2(r, y))
+// ------------------------------------------------------------------ clothing
+
+/** Which garment each bone's skin belongs to: [jacket, trousers, boots, skin]. */
+function boneRegion(name: string): [number, number, number, number] {
+  if (/^(foot|ball)/.test(name)) return [0, 0, 1, 0]
+  if (/^(pelvis|thigh|calf|root)/.test(name)) return [0, 1, 0, 0]
+  if (/^neck/.test(name)) return [0.55, 0, 0, 0.45] // collar
+  if (/^(spine|clavicle|upperarm|lowerarm)/.test(name)) return [1, 0, 0, 0]
+  return [0, 0, 0, 1] // head, hands, fingers
+}
+
+/** Per-vertex garment weights from the skin weights (computed once per body geometry). */
+function clothAttribute(geometry: BufferGeometry, bones: Bone[]) {
+  if (geometry.getAttribute('aCloth')) return
+  const idx = geometry.getAttribute('skinIndex')
+  const wts = geometry.getAttribute('skinWeight')
+  const out = new Float32Array(idx.count * 4)
+  const regions = bones.map((b) => boneRegion(b.name))
+  for (let v = 0; v < idx.count; v++) {
+    for (let k = 0; k < 4; k++) {
+      const w = wts.getComponent(v, k)
+      if (w === 0) continue
+      const r = regions[idx.getComponent(v, k)] ?? [0, 0, 0, 1]
+      for (let c = 0; c < 4; c++) out[v * 4 + c] += r[c] * w
     }
   }
-  pts.push(new Vector2(0, 1.5))
-  const geo = new LatheGeometry(pts, 28)
-  geo.scale(1, 1, 0.78) // bodies are wider than they are deep
-  geo.computeVertexNormals()
-  return geo
+  geometry.setAttribute('aCloth', new BufferAttribute(out, 4))
 }
 
-function createHoodGeometry() {
-  const g = new SphereGeometry(0.165, 28, 20, Math.PI / 2 + 0.68, Math.PI * 2 - 1.36, 0.12, Math.PI - 0.42)
-  // Stretch toward a soft peak at the back-top, like a real parka hood.
-  const p = g.attributes.position
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i)
-    const y = p.getY(i)
-    const z = p.getZ(i)
-    const back = Math.max(0, -z) / 0.165
-    const top = Math.max(0, y) / 0.165
-    p.setXYZ(i, x * 1.02, y * 1.12 + back * top * 0.03, z * 1.18 - top * back * 0.03)
+interface ClothColors {
+  jacket: string
+  pants: string
+  hair: string
+}
+
+/**
+ * Dress the base body in shader: a quilted puffer jacket (inflated, with baffles),
+ * trousers and leather boots, keeping skin on the face, neck and hands.
+ */
+function createClothedMaterial(src: MeshStandardMaterial, skin: Texture, fabricNor: Texture, c: ClothColors) {
+  const m = src.clone()
+  m.map = skin
+  m.envMapIntensity = 0.6
+  m.metalness = 0
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uJacket = { value: new Color(c.jacket) }
+    shader.uniforms.uPants = { value: new Color(c.pants) }
+    shader.uniforms.uBoots = { value: new Color('#3a2a1e') }
+    shader.uniforms.uFabricNor = { value: fabricNor }
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'attribute vec4 aCloth;\nvarying vec4 vCloth;\nvarying float vBindY;\nvoid main() {\nvCloth = aCloth;\nvBindY = position.y;')
+      .replace(
+        '#include <begin_vertex>',
+        /* glsl */ `#include <begin_vertex>
+        {
+          // the mesh is already reshaped into clothes (garments.ts): add down-jacket baffles and boots
+          float jacket = smoothstep(0.3, 0.7, aCloth.x);
+          float baffles = 0.009 * abs(sin(position.y * 28.0));
+          transformed += objectNormal * (jacket * baffles + aCloth.z * 0.02);
+        }`,
+      )
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        'void main() {',
+        /* glsl */ `uniform vec3 uJacket;
+        uniform vec3 uPants;
+        uniform vec3 uBoots;
+        uniform sampler2D uFabricNor;
+        varying vec4 vCloth;
+        varying float vBindY;
+        float clothAmount() {
+          return clamp(smoothstep(0.35, 0.65, vCloth.x) + smoothstep(0.4, 0.6, vCloth.y) + smoothstep(0.4, 0.6, vCloth.z), 0.0, 1.0);
+        }
+        void main() {`,
+      )
+      .replace(
+        '#include <map_fragment>',
+        /* glsl */ `#include <map_fragment>
+        {
+          float j = smoothstep(0.35, 0.65, vCloth.x);
+          float p = smoothstep(0.4, 0.6, vCloth.y);
+          float b = smoothstep(0.4, 0.6, vCloth.z);
+          vec3 jacket = uJacket * (0.9 + 0.1 * abs(sin(vBindY * 30.0)));
+          vec3 cloth = (jacket * j + uPants * p + uBoots * b) / max(j + p + b, 1e-3);
+          diffuseColor.rgb = mix(diffuseColor.rgb, cloth, clothAmount());
+        }`,
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        /* glsl */ `#include <roughnessmap_fragment>
+        roughnessFactor = mix(roughnessFactor, mix(0.8, 0.92, smoothstep(0.4, 0.6, vCloth.y)), clothAmount());`,
+      )
+      // Replace the skin's muscle detail with woven fabric where there are clothes.
+      .replace(
+        '#include <normal_fragment_maps>',
+        /* glsl */ `#include <normal_fragment_maps>
+        #ifdef USE_NORMALMAP_TANGENTSPACE
+        {
+          vec3 fabricN = texture2D( uFabricNor, vNormalMapUv * 14.0 ).xyz * 2.0 - 1.0;
+          fabricN.xy *= 0.5;
+          vec3 fabricNormal = normalize( tbn * fabricN );
+          normal = normalize( mix( normal, fabricNormal, clothAmount() ) );
+        }
+        #endif`,
+      )
   }
-  g.computeVertexNormals()
-  return g
+  return m
 }
 
-const GEO = {
-  parka: createParkaGeometry(),
-  // Hood shell with the front (+z) slice cut away for the face opening.
-  // Hood shell with the front (+z) slice cut away for the face opening; elongated like a parka hood.
-  hood: createHoodGeometry(),
-  head: new SphereGeometry(0.118, 16, 12).scale(0.92, 1.08, 0.95),
-  scarf: new TorusGeometry(0.115, 0.045, 8, 20).rotateX(Math.PI / 2),
-  upperArm: new CapsuleGeometry(0.074, 0.24, 4, 12).translate(0, -0.14, 0),
-  forearm: new CapsuleGeometry(0.066, 0.22, 4, 12).translate(0, -0.13, 0),
-  mitten: new SphereGeometry(0.055, 10, 8).scale(0.85, 1.25, 0.75).translate(0, -0.28, 0.01),
-  thigh: new CapsuleGeometry(0.098, 0.3, 4, 12).translate(0, -0.25, 0), // top cap stays inside the hip
-  shin: new CapsuleGeometry(0.084, 0.3, 4, 12).translate(0, -0.18, 0),
-  boot: new CapsuleGeometry(0.068, 0.16, 4, 10).rotateX(Math.PI / 2).scale(1.1, 0.95, 1).translate(0, -0.39, 0.05),
+// ------------------------------------------------------------------ assembly
+
+interface Rig {
+  root: Object3D
+  mixer: AnimationMixer
+  actions: Partial<Record<keyof typeof CLIPS, AnimationAction>>
 }
 
-// Joint positions.
-const HIP_Y = 0.86
-const HIP_X = 0.098
-const KNEE_Y = -0.42
-const SHOULDER_Y = 1.34
-const SHOULDER_X = 0.205
-const ELBOW_Y = -0.3
-const SIT_DROP = 0.62
+const clipCache = new Map<Body, AnimationClip[]>()
 
-interface Materials {
-  parka: MeshStandardMaterial
-  accent: MeshStandardMaterial
-  pants: MeshStandardMaterial
-  boots: MeshStandardMaterial
-  face: MeshStandardMaterial
-}
-
-function useCharacterMaterials(colors: CharacterColors): Materials {
-  const tex = useTexture({
-    fleeceNor: ASSETS.fabric.fleeceNor,
-    fleeceRough: ASSETS.fabric.fleeceRough,
-    cabanNor: ASSETS.fabric.cabanNor,
+/** The animation library's pelvis heights are for a shorter mannequin: scale them to this body. */
+function clipsFor(body: Body, clips: AnimationClip[], pelvisRestHeight: number) {
+  const hit = clipCache.get(body)
+  if (hit) return hit
+  const ratio = pelvisRestHeight / 0.917
+  const out = clips.map((c) => {
+    const clip = c.clone()
+    for (const t of clip.tracks) if (t.name === 'pelvis.position') for (let i = 0; i < t.values.length; i++) t.values[i] *= ratio
+    return clip
   })
-  return useMemo(() => {
-    const tiled = (t: Texture, repeat: number) => {
-      const c = t.clone()
-      c.wrapS = c.wrapT = RepeatWrapping
-      c.repeat.set(repeat, repeat)
-      c.needsUpdate = true
-      return c
-    }
-    const fabric = (color: string, nor: Texture, repeat: number, roughness: number, normalScale = 0.6) =>
-      new MeshStandardMaterial({
-        color,
-        roughness,
-        metalness: 0,
-        normalMap: tiled(nor, repeat),
-        normalScale: new Vector2(normalScale, normalScale),
-      })
-    return {
-      parka: Object.assign(fabric(colors.body, tex.cabanNor, 6, 0.78, 0.35), {
-        roughnessMap: tiled(tex.fleeceRough, 6),
-        side: DoubleSide, // hood lining is visible through the face opening
-      }),
-      accent: fabric(colors.hat, tex.fleeceNor, 4, 0.95, 1),
-      pants: fabric('#24262b', tex.cabanNor, 5, 0.9),
-      boots: new MeshStandardMaterial({ color: '#2b1e16', roughness: 0.55, metalness: 0 }),
-      face: new MeshStandardMaterial({ color: '#030202', roughness: 1, metalness: 0, envMapIntensity: 0 }),
-    }
-  }, [colors.body, colors.hat, tex])
+  clipCache.set(body, out)
+  return out
 }
+
+function buildRig(body: Body, bodyScene: Object3D, hairScenes: Object3D[], clips: AnimationClip[], skin: Texture, fabricNor: Texture, colors: ClothColors): Rig {
+  const root = cloneSkinned(bodyScene)
+  let armature: Object3D | null = null
+  const bonesByName = new Map<string, Bone>()
+  root.traverse((o) => {
+    if ((o as Bone).isBone) bonesByName.set(o.name, o as Bone)
+    const mesh = o as SkinnedMesh
+    if (!mesh.isSkinnedMesh) return
+    mesh.castShadow = true
+    mesh.receiveShadow = true
+    mesh.frustumCulled = false
+    const mat = mesh.material as MeshStandardMaterial
+    if (/Hair/.test(mat.name)) {
+      // the hair textures are greyscale, meant to be tinted
+      mesh.material = Object.assign(mat.clone(), { color: new Color(colors.hair) })
+    }
+    if (/Superhero/.test(mat.name)) {
+      armature = mesh.parent
+      clothAttribute(mesh.geometry, mesh.skeleton.bones)
+      dressBody(mesh.geometry)
+      mesh.material = createClothedMaterial(mat, skin, fabricNor, colors)
+    }
+  })
+
+  // Hair is skinned to the same skeleton (head bone): re-bind it to this body's bones.
+  const parent: Object3D = armature ?? root
+  for (const scene of hairScenes) {
+    scene.traverse((o) => {
+      const hair = o as SkinnedMesh
+      if (!hair.isSkinnedMesh) return
+      const bones = hair.skeleton.bones.map((b) => bonesByName.get(b.name) ?? b)
+      const mesh = new SkinnedMesh(hair.geometry, Object.assign((hair.material as MeshStandardMaterial).clone(), { color: new Color(colors.hair) }))
+      mesh.bind(new Skeleton(bones, hair.skeleton.boneInverses), hair.bindMatrix)
+      mesh.castShadow = true
+      mesh.frustumCulled = false
+      parent.add(mesh)
+    })
+  }
+
+  const pelvis = bonesByName.get('pelvis')
+  const mixer = new AnimationMixer(root)
+  const scaled = clipsFor(body, clips, pelvis ? pelvis.position.z : 0.917)
+  const byName = new Map(scaled.map((c) => [c.name, c]))
+  const actions: Rig['actions'] = {}
+  for (const [key, name] of Object.entries(CLIPS) as [keyof typeof CLIPS, string][]) {
+    const clip = byName.get(name)
+    if (!clip) continue
+    const a = mixer.clipAction(clip)
+    if (key === 'sitEnter' || key === 'sitExit' || key === 'wave') {
+      a.setLoop(LoopOnce, 1)
+      a.clampWhenFinished = true
+    }
+    a.setEffectiveWeight(key === 'idle' ? 1 : 0)
+    actions[key] = a
+  }
+  return { root, mixer, actions }
+}
+
+// ------------------------------------------------------------------ component
 
 interface CharacterProps {
   /** Player id, for speech bubbles and emotes. */
   playerId: string
   name: string
+  look: LookId
   colors: CharacterColors
   motion: RefObject<MotionState>
-  /** Extra overlays above the head (chat bubbles, emotes). */
+  /** Extra overlays above the head. */
   children?: ReactNode
 }
 
-/** A person in a hooded winter parka. Procedurally animated walk, idle, and sitting by the fire. */
-export function Character({ playerId, name, colors, motion, children }: CharacterProps) {
-  const mats = useCharacterMaterials(colors)
-  const body = useRef<Group>(null!)
-  const torso = useRef<Group>(null!)
-  const hood = useRef<Group>(null!)
-  const hips = useRef<(Group | null)[]>([])
-  const knees = useRef<(Group | null)[]>([])
-  const shoulders = useRef<(Group | null)[]>([])
-  const elbows = useRef<(Group | null)[]>([])
-  const sit = useRef(0)
-  const anim = useRef({ phase: 0, speed: 0, wave: 0 })
+type Mode = 'stand' | 'enter' | 'seated' | 'exit'
 
-  useFrame(({ clock }, rawDt) => {
-    const dt = Math.min(rawDt, 0.05)
-    const m = motion.current
-    const a = anim.current
-    a.speed += (m.speed - a.speed) * damp(8, dt)
-    sit.current += ((m.sitting ? 1 : 0) - sit.current) * damp(3.5, dt)
-    // cadence: ~1 stride per 1.3 m at walking speed
-    a.phase += dt * (1.2 + a.speed * 6.5)
+/** A person by the fire: a real-proportioned body, clothes in their colours, captured motion. */
+export function Character({ playerId, name, look, colors, motion, children }: CharacterProps) {
+  const l = LOOKS[look]
+  const bodyGltf = useGLTF(PEOPLE_URLS.body(l.body))
+  const animGltf = useGLTF(PEOPLE_URLS.anims)
+  const hairGltfs = useGLTF(l.hair.map(PEOPLE_URLS.hair))
+  const tex = useTexture({ skin: PEOPLE_URLS.skin(l), fabric: ASSETS.fabric.cabanNor })
 
-    const w = a.speed * (1 - sit.current)
-    const s = sit.current
-    const t = clock.elapsedTime
-    const ph = a.phase
-    // Waving: right arm raised, hand swaying, for the length of the emote.
-    const emote = useSocialStore.getState().emotes[playerId]
-    const waving = emote?.value === 'wave' && Date.now() - emote.at < 2200 ? 1 : 0
-    a.wave += (waving - a.wave) * damp(8, dt)
-    const breathe = Math.sin(t * 1.7) * 0.008
+  const rig = useMemo(() => {
+    tex.skin.colorSpace = SRGBColorSpace
+    tex.skin.flipY = false // glTF UV convention
+    tex.fabric.wrapS = tex.fabric.wrapT = RepeatWrapping
+    return buildRig(
+      l.body,
+      bodyGltf.scene,
+      hairGltfs.map((g) => g.scene),
+      animGltf.animations,
+      tex.skin,
+      tex.fabric,
+      { jacket: colors.body, pants: l.pants, hair: l.hairColor },
+    )
+  }, [l, bodyGltf.scene, hairGltfs, animGltf.animations, tex, colors.body])
 
-    body.current.position.y = -SIT_DROP * s + (Math.abs(Math.cos(ph)) * 0.035 - 0.02) * w
-    body.current.rotation.x = 0.06 * w
-    torso.current.rotation.x = 0.16 * s + 0.04 * w
-    torso.current.rotation.y = Math.sin(ph) * 0.07 * w
-    torso.current.scale.set(1 + breathe, 1 + breathe * 0.5, 1 + breathe)
-    hood.current.rotation.x = -0.1 * s + Math.sin(t * 0.4) * 0.03 * (1 - w)
-    hood.current.rotation.y = Math.sin(t * 0.23) * 0.12 * (1 - w) * (1 - s)
-
-    for (let side = 0; side < 2; side++) {
-      const sign = side === 0 ? 1 : -1
-      const swing = Math.sin(ph + side * Math.PI)
-      const hip = hips.current[side]
-      const knee = knees.current[side]
-      const shoulder = shoulders.current[side]
-      const elbow = elbows.current[side]
-      if (!hip || !knee || !shoulder || !elbow) continue
-
-      // legs: walk swing, or seated with knees drawn up
-      hip.rotation.x = -swing * 0.42 * w + -1.95 * s
-      hip.rotation.z = sign * 0.12 * s
-      knee.rotation.x = (0.08 + 0.7 * Math.max(0, -Math.cos(ph + side * Math.PI))) * w + 2.25 * s
-
-      // arms: counter-swing when walking; reaching to the fire, rubbing hands, when sitting
-      const rub = Math.sin(t * 4.2 + side * Math.PI) * 0.07 * s
-      shoulder.rotation.x = swing * 0.35 * w - 0.62 * s + rub
-      shoulder.rotation.z = sign * (0.1 * (1 - s) + 0.04 * s)
-      elbow.rotation.x = -0.25 * w - 1.25 * s - rub
-      elbow.rotation.z = -sign * 0.55 * s
-      if (side === 1 && a.wave > 0.01) {
-        const v = a.wave
-        shoulder.rotation.x = shoulder.rotation.x * (1 - v) - 0.35 * v
-        shoulder.rotation.z = shoulder.rotation.z * (1 - v) - 2.5 * v
-        elbow.rotation.x = elbow.rotation.x * (1 - v)
-        elbow.rotation.z = elbow.rotation.z * (1 - v) + (-0.5 + Math.sin(t * 9) * 0.35) * v
-      }
+  // Start every clip (weights decide what shows) whenever this rig mounts. Doing this in the
+  // effect, not while building the rig, keeps React's dev double-mount from leaving the
+  // loops stopped (which froze characters in a T-pose).
+  useEffect(() => {
+    for (const a of Object.values(rig.actions)) {
+      a.reset()
+      a.enabled = true
+      a.play()
     }
-  })
+    return () => {
+      rig.mixer.stopAllAction()
+    }
+  }, [rig])
 
-  const legs = [HIP_X, -HIP_X]
-  const arms = [SHOULDER_X, -SHOULDER_X]
+  // Free GPU materials only when the rig itself is replaced or the character leaves.
+  useEffect(
+    () => () => {
+      rig.root.traverse((o) => {
+        const m = o as Mesh
+        if (m.isMesh && m.material && !Array.isArray(m.material)) (m.material as MeshStandardMaterial).dispose()
+      })
+    },
+    [rig],
+  )
+
+  const state = useRef({ mode: 'stand' as Mode, t: 0, weights: {} as Record<string, number>, emoteSeen: 0 })
+
+  useFrame((_, rawDt) => {
+    const dt = Math.min(rawDt, 0.1)
+    const m = motion.current
+    const s = state.current
+    const { actions } = rig
+    s.t += dt
+
+    // sitting: sit down → seated → stand up
+    if (m.sitting && (s.mode === 'stand' || s.mode === 'exit')) {
+      s.mode = 'enter'
+      s.t = 0
+      actions.sitEnter?.reset().play()
+    } else if (!m.sitting && (s.mode === 'seated' || s.mode === 'enter')) {
+      s.mode = 'exit'
+      s.t = 0
+      actions.sitExit?.reset().play()
+    }
+    if (s.mode === 'enter' && s.t > (actions.sitEnter?.getClip().duration ?? 1) * 0.92) s.mode = 'seated'
+    if (s.mode === 'exit' && s.t > (actions.sitExit?.getClip().duration ?? 1) * 0.85) s.mode = 'stand'
+
+    const social = useSocialStore.getState()
+    const talking = !!social.bubbles[playerId]
+    const emote = social.emotes[playerId]
+    if (emote && emote.nonce !== s.emoteSeen && s.mode === 'stand') {
+      s.emoteSeen = emote.nonce
+      if (emote.value === 'wave') actions.wave?.reset().play()
+    }
+    const waving = emote?.value === 'wave' && Date.now() - emote.at < 1900 && s.mode === 'stand'
+    const dancing = emote?.value === 'heart' && Date.now() - emote.at < 2500 && s.mode === 'stand'
+
+    // locomotion blend by ground speed: idle → walk → sprint
+    const v = m.speed
+    const moving = Math.min(1, Math.max(0, (v - 0.08) / 0.5))
+    const sprint = Math.min(1, Math.max(0, (v - 2.3) / 1.2))
+    const target: Record<string, number> = {}
+    if (s.mode === 'stand') {
+      const still = 1 - moving
+      const gesture = waving || dancing ? 1 : 0
+      target.idle = still * (talking ? 0 : 1) * (1 - gesture)
+      target.talk = still * (talking ? 1 : 0) * (1 - gesture)
+      target.wave = still * (waving ? 1 : 0)
+      target.dance = still * (dancing ? 1 : 0)
+      target.walk = moving * (1 - sprint)
+      target.sprint = moving * sprint
+    } else if (s.mode === 'enter') target.sitEnter = 1
+    else if (s.mode === 'exit') target.sitExit = 1
+    else {
+      target.sitIdle = talking ? 0 : 1
+      target.sitTalk = talking ? 1 : 0
+    }
+    if (actions.walk) actions.walk.timeScale = Math.min(1.7, Math.max(0.55, v / 1.3))
+    if (actions.sprint) actions.sprint.timeScale = Math.min(1.35, Math.max(0.7, v / 4.6))
+
+    const k = damp(s.mode === 'stand' ? 9 : 14, dt)
+    for (const [key, action] of Object.entries(actions)) {
+      const prev = s.weights[key] ?? (key === 'idle' ? 1 : 0)
+      const w = prev + ((target[key] ?? 0) - prev) * k
+      s.weights[key] = w
+      action.setEffectiveWeight(w)
+    }
+    rig.mixer.update(dt)
+  })
 
   return (
     <group>
-      <group ref={body}>
-        {/* legs */}
-        {legs.map((x, i) => (
-          <group
-            key={`leg${i}`}
-            position={[x, HIP_Y, 0]}
-            ref={(g) => {
-              hips.current[i] = g
-            }}
-          >
-            <mesh geometry={GEO.thigh} material={mats.pants} castShadow />
-            <group
-              position={[0, KNEE_Y, 0]}
-              ref={(g) => {
-                knees.current[i] = g
-              }}
-            >
-              <mesh geometry={GEO.shin} material={mats.pants} castShadow />
-              <mesh geometry={GEO.boot} material={mats.boots} castShadow />
-            </group>
-          </group>
-        ))}
-
-        <group ref={torso}>
-          <mesh geometry={GEO.parka} material={mats.parka} castShadow receiveShadow />
-          <mesh geometry={GEO.scarf} material={mats.accent} position={[0, 1.45, 0.01]} castShadow />
-
-          {/* arms */}
-          {arms.map((x, i) => (
-            <group
-              key={`arm${i}`}
-              position={[x, SHOULDER_Y, 0]}
-              ref={(g) => {
-                shoulders.current[i] = g
-              }}
-            >
-              <mesh geometry={GEO.upperArm} material={mats.parka} castShadow />
-              <group
-                position={[0, ELBOW_Y, 0]}
-                ref={(g) => {
-                  elbows.current[i] = g
-                }}
-              >
-                <mesh geometry={GEO.forearm} material={mats.parka} castShadow />
-                <mesh geometry={GEO.mitten} material={mats.accent} castShadow />
-              </group>
-            </group>
-          ))}
-
-          {/* hood up against the evening breeze; the face lost in its shadow */}
-          <group ref={hood} position={[0, 1.6, -0.025]}>
-            <mesh geometry={GEO.hood} material={mats.parka} castShadow />
-            <mesh geometry={GEO.head} material={mats.face} position={[0, -0.02, 0.0]} />
-          </group>
-        </group>
-      </group>
-
-      <Html position={[0, 2.05, 0]} center distanceFactor={7} zIndexRange={[5, 0]} portal={labelLayerRef as RefObject<HTMLElement>}>
+      <primitive object={rig.root} />
+      <Html position={[0, 2.12, 0]} center distanceFactor={7} zIndexRange={[5, 0]} portal={labelLayerRef as RefObject<HTMLElement>}>
         <div className="flex flex-col items-center gap-1 select-none">
           <PlayerOverlays id={playerId} />
           {children}
-          <span className="whitespace-nowrap font-serif text-[12px] tracking-wide text-amber-50/60 [text-shadow:0_1px_6px_rgba(0,0,0,0.95)]">
+          <span className="on-scene whitespace-nowrap text-[12px] font-medium tracking-[0.02em] text-ink/85">
             {name}
           </span>
         </div>

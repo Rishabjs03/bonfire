@@ -46,9 +46,11 @@ export const FOG = {
 }
 
 export const TREES = {
-  clearingRadius: 9, // no trees this close to the fire
+  clearingRadius: 14.5, // no trees this close to the fire: keeps every camera angle from the benches clear
+  viewCorridor: 26, // degrees either side of the Matterhorn direction kept clear
+  sideCorridor: 24, // degrees either side of the view across the fire from each side bench
   cameraFadeNear: 1.2,
-  cameraFadeFar: 3.2,
+  cameraFadeFar: 4.5,
   larchShare: 0.58, // the rest are Swiss stone pines (Arven)
 }
 
@@ -86,7 +88,7 @@ export const POST = {
 
 export const PLAYER = {
   walkSpeed: 1.45, // m/s, a slow wander through the meadow
-  slowSpeed: 0.75,
+  sprintSpeed: 4.4, // Shift + W
   acceleration: 6,
   deceleration: 6,
   turnSpeed: 7,

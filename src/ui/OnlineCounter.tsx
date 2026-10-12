@@ -1,12 +1,14 @@
 import { useGameStore } from '../store/gameStore'
-import { presenceLabel } from './presenceLabel'
+import { hasPeople, presenceLabel } from './presenceLabel'
 
 export function OnlineCounter() {
   const netStatus = useGameStore((s) => s.netStatus)
   const onlineCount = useGameStore((s) => s.onlineCount)
+  const count = Math.max(1, onlineCount)
   return (
-    <div className="pointer-events-none absolute left-4 top-4 font-serif text-xs tracking-wide text-amber-100/60 [text-shadow:0_1px_4px_rgba(0,0,0,0.9)]">
-      {presenceLabel(netStatus, Math.max(1, onlineCount), true)}
+    <div className="panel pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-full py-1.5 pl-3 pr-3.5 text-[12.5px] font-medium text-ink">
+      {hasPeople(netStatus, count) && <span className="ember-dot" aria-hidden />}
+      <span className="tabular">{presenceLabel(netStatus, count, true)}</span>
     </div>
   )
 }

@@ -12,9 +12,9 @@ export function MuteButton() {
       onClick={() => audioEngine.toggleMuted()}
       aria-label={muted ? 'Unmute sound (M)' : 'Mute sound (M)'}
       title={muted ? 'Unmute (M)' : 'Mute (M)'}
-      className="absolute right-4 top-3 z-10 grid h-9 w-9 place-items-center rounded-full text-amber-100/60 transition hover:bg-white/5 hover:text-amber-100/90"
+      className="panel absolute right-4 top-4 z-10 grid h-9 w-9 place-items-center rounded-full text-ink-muted transition hover:text-ink"
     >
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
         {muted ? (
           <path d="M16 9.5l5 5M21 9.5l-5 5" />

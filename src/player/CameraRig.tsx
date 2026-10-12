@@ -8,7 +8,14 @@ import { heightAt } from '../lib/terrain'
 import { localRuntime, useGameStore } from '../store/gameStore'
 import { readOrbitInput } from './useControls'
 
+const TOP_VIEW = import.meta.env.DEV && new URLSearchParams(window.location.search).get('cam') === 'top'
 const DRAG_SENSITIVITY = 0.005
+const SWIPE_YAW = 0.0045 // per pixel of two-finger swipe
+const SWIPE_PITCH = 0.003
+const PITCH_MIN = -0.32
+const PITCH_MAX = 0.85
+const ZOOM_MIN = 0.45
+const ZOOM_MAX = 1.9
 const INTRO_BASE = Math.atan2(-VIEW_DIR.x, -VIEW_DIR.z)
 const introTarget = new Vector3()
 const introLook = new Vector3(VIEW_DIR.x * 7, 2.4, VIEW_DIR.z * 7)
@@ -52,11 +59,28 @@ export function CameraRig() {
     const up = (e: PointerEvent) => {
       if (dragging === e.pointerId) dragging = null
     }
+    // Trackpad: two-finger swipe looks around, pinch (ctrl + wheel on macOS) zooms.
+    // A regular mouse wheel (whole-line or big integer steps, no sideways delta) zooms too.
+    const wheel = (e: WheelEvent) => {
+      if (useGameStore.getState().phase !== 'joined') return
+      e.preventDefault()
+      const rt = localRuntime
+      const mouseWheel = e.deltaMode !== 0 || (e.deltaX === 0 && Math.abs(e.deltaY) >= 50 && Number.isInteger(e.deltaY))
+      if (e.ctrlKey || mouseWheel) {
+        const factor = Math.exp((e.ctrlKey ? e.deltaY * 0.012 : Math.sign(e.deltaY) * 0.12))
+        rt.cameraZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, rt.cameraZoom * factor))
+      } else {
+        rt.cameraYaw -= e.deltaX * SWIPE_YAW
+        rt.cameraPitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, rt.cameraPitch + e.deltaY * SWIPE_PITCH))
+      }
+    }
+    el.addEventListener('wheel', wheel, { passive: false })
     el.addEventListener('pointerdown', down)
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
     window.addEventListener('pointercancel', up)
     return () => {
+      el.removeEventListener('wheel', wheel)
       el.removeEventListener('pointerdown', down)
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
@@ -65,6 +89,12 @@ export function CameraRig() {
   }, [gl])
 
   useFrame(({ camera, clock }, rawDt) => {
+    if (TOP_VIEW) {
+      // dev: look straight down on the camp
+      camera.position.set(0, 70, 0.01)
+      camera.lookAt(0, 0, 0)
+      return
+    }
     const dt = Math.min(rawDt, 0.05)
     const rt = localRuntime
     if (useGameStore.getState().phase !== 'joined') {
@@ -76,8 +106,12 @@ export function CameraRig() {
 
     const p = rt.position
     const nearFire = 1 - smoothstep(CAMERA.nearFireRadius, CAMERA.nearFireRadius + 5, Math.hypot(p.x, p.z))
-    const dist = CAMERA.distance + (CAMERA.nearFireDistance - CAMERA.distance) * nearFire
-    const height = CAMERA.height + (CAMERA.nearFireHeight - CAMERA.height) * nearFire
+    const baseDist = (CAMERA.distance + (CAMERA.nearFireDistance - CAMERA.distance) * nearFire) * rt.cameraZoom
+    const baseHeight = CAMERA.height + (CAMERA.nearFireHeight - CAMERA.height) * nearFire
+    // tilt: orbit the camera up/down around the player
+    const dist = baseDist * Math.cos(rt.cameraPitch * 0.9)
+    const height = baseHeight + baseDist * Math.sin(rt.cameraPitch) * 0.9
+    const lookLift = Math.max(0, -rt.cameraPitch) * 3.2 // looking up toward the peaks
 
     const d = desired.current
     const sx = -Math.cos(rt.cameraYaw) * CAMERA.shoulderOffset
@@ -87,12 +121,12 @@ export function CameraRig() {
 
     if (!initialized.current) {
       camera.position.copy(d)
-      look.current.set(p.x + sx, p.y + CAMERA.lookHeight, p.z + sz)
+      look.current.set(p.x + sx, p.y + CAMERA.lookHeight + lookLift, p.z + sz)
       initialized.current = true
     } else {
       camera.position.lerp(d, damp(CAMERA.followLerp, dt))
       look.current.x += (p.x + sx - look.current.x) * damp(CAMERA.followLerp * 2, dt)
-      look.current.y += (p.y + CAMERA.lookHeight - look.current.y) * damp(CAMERA.followLerp * 2, dt)
+      look.current.y += (p.y + CAMERA.lookHeight + lookLift - look.current.y) * damp(CAMERA.followLerp * 2, dt)
       look.current.z += (p.z + sz - look.current.z) * damp(CAMERA.followLerp * 2, dt)
     }
     camera.lookAt(look.current)

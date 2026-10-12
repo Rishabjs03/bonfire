@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { NET } from '../config'
 import type { CharacterColors } from '../lib/palette'
+import type { LookId } from '../player/people'
 import { spawnLocalPlayer } from '../player/spawn'
 import { localRuntime, useGameStore, type RemotePlayerInfo } from '../store/gameStore'
 import { useSocialStore, type EmoteKind } from '../store/socialStore'
@@ -56,7 +57,7 @@ function handleSync() {
   const now = performance.now()
   for (const m of metas) {
     if (m.id === myId) continue
-    players[m.id] = { id: m.id, name: m.name, colors: m.colors }
+    players[m.id] = { id: m.id, name: m.name, colors: m.colors, look: m.look }
     const isNew = !remotes.has(m.id)
     const r = getRemote(m.id)
     const latest = r.buffer.latest
@@ -75,7 +76,11 @@ function handleSync() {
   const same =
     Object.keys(prev).length === Object.keys(players).length &&
     Object.values(players).every(
-      (p) => prev[p.id]?.name === p.name && prev[p.id]?.colors.body === p.colors.body && prev[p.id]?.colors.hat === p.colors.hat,
+      (p) =>
+        prev[p.id]?.name === p.name &&
+        prev[p.id]?.colors.body === p.colors.body &&
+        prev[p.id]?.colors.hat === p.colors.hat &&
+        prev[p.id]?.look === p.look,
     )
   store.setState({ onlineCount: metas.length, ...(same ? {} : { players }) })
 }
@@ -207,9 +212,9 @@ function checkStale() {
 }
 
 /** Step up to the fire. Works offline too (you'll just be alone). */
-export async function joinFire(name: string, colors: CharacterColors) {
+export async function joinFire(name: string, colors: CharacterColors, look: LookId) {
   const cleaned = cleanName(name) || 'Wanderer'
-  store.setState({ name: cleaned, colors })
+  store.setState({ name: cleaned, colors, look })
   const { netStatus, onlineCount } = store.getState()
   if (channel && netStatus === 'online' && onlineCount >= NET.maxPlayers) {
     store.setState({ phase: 'full' })
@@ -221,6 +226,7 @@ export async function joinFire(name: string, colors: CharacterColors) {
     id: myId,
     name: cleaned,
     colors,
+    look,
     joinedAt: Date.now(),
     x: localRuntime.position.x,
     z: localRuntime.position.z,

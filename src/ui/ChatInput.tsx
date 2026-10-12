@@ -37,12 +37,12 @@ export function ChatInput() {
       setText('')
       close()
     } else if (chatCooldownLeft() > 0) {
-      setNote('a moment…')
+      setNote('One moment…')
     }
   }
 
   return (
-    <div className="absolute inset-x-0 bottom-20 z-10 flex justify-center px-4">
+    <div className="absolute inset-x-0 bottom-24 z-10 flex justify-center px-4">
       <div className="w-full max-w-md">
         <label htmlFor="chat" className="sr-only">
           Say something
@@ -60,12 +60,18 @@ export function ChatInput() {
           }}
           onKeyDown={onKeyDown}
           onBlur={close}
-          placeholder="say something…"
-          className="w-full rounded-full border border-amber-100/20 bg-black/55 px-5 py-2.5 font-serif text-sm text-amber-50/90 outline-none backdrop-blur-sm placeholder:text-stone-400/70 focus:border-amber-100/40"
+          placeholder="Say something to the fire…"
+          className="panel h-12 w-full rounded-full px-5 text-[14.5px] text-ink outline-none transition placeholder:text-ink-faint focus:border-ember/60"
         />
-        <div className="mt-1 flex justify-between px-4 font-serif text-[11px] text-stone-400/70">
-          <span>{note || 'enter to send · esc to close'}</span>
-          <span>
+        <div className="mt-2 flex items-center justify-between px-5 text-[11.5px] text-ink-faint">
+          <span className="flex items-center gap-1.5">
+            {note || (
+              <>
+                <kbd className="kbd">↵</kbd> send <span className="mx-1">·</span> <kbd className="kbd">esc</kbd> close
+              </>
+            )}
+          </span>
+          <span className="tabular">
             {text.length}/{MAX_CHAT_LENGTH}
           </span>
         </div>

@@ -9,7 +9,7 @@ import { useGameStore, type RemotePlayerInfo } from '../store/gameStore'
 import { Character } from './Character'
 import { createMotionState } from './motion'
 
-function RemotePlayer({ id, name, colors }: RemotePlayerInfo) {
+function RemotePlayer({ id, name, colors, look }: RemotePlayerInfo) {
   const group = useRef<Group>(null!)
   const motion = useRef(createMotionState())
   const pose = useRef({ x: 0, z: 0, rotY: 0 })
@@ -34,13 +34,13 @@ function RemotePlayer({ id, name, colors }: RemotePlayerInfo) {
 
     group.current.position.set(s.x, heightAt(s.x, s.z), s.z)
     group.current.rotation.y = s.rotY
-    motion.current.speed = Math.min(1, s.speed / PLAYER.walkSpeed)
-    motion.current.sitting = r.sitting && s.speed < 0.2
+    motion.current.speed = s.speed
+    motion.current.sitting = r.sitting && s.speed < 0.3
   })
 
   return (
     <group ref={group}>
-      <Character playerId={id} name={name} colors={colors} motion={motion} />
+      <Character playerId={id} name={name} look={look} colors={colors} motion={motion} />
     </group>
   )
 }

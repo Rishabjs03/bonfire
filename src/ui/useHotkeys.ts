@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { audioEngine } from '../audio/audioEngine'
 import { sendEmote } from '../net/useMultiplayer'
 import { useGameStore } from '../store/gameStore'
+import { useRadioStore } from '../store/radioStore'
 import { EMOTES, type EmoteKind } from '../store/socialStore'
 
 const isTyping = (target: EventTarget | null) =>
@@ -22,6 +23,16 @@ export function useHotkeys() {
         return
       }
       if (phase !== 'joined') return
+      if (e.code === 'KeyR' && (useRadioStore.getState().near || useRadioStore.getState().playing)) {
+        e.preventDefault()
+        const radio = useRadioStore.getState()
+        radio.setOpen(!radio.open)
+        return
+      }
+      if (e.code === 'Escape' && (useRadioStore.getState().open || useRadioStore.getState().playerExpanded)) {
+        useRadioStore.setState({ open: false, playerExpanded: false })
+        return
+      }
       if (e.code === 'Enter') {
         e.preventDefault()
         setChatOpen(true)

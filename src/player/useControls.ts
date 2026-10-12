@@ -57,7 +57,7 @@ export function readMoveInput(out: { x: number; y: number }) {
   out.y = y
 }
 
-export const isSlowHeld = () => has('ShiftLeft', 'ShiftRight')
+export const isSprintHeld = () => has('ShiftLeft', 'ShiftRight')
 
 /** Camera orbit from Q/E: -1, 0 or 1. */
 export const readOrbitInput = () => (has('KeyQ') ? 1 : 0) - (has('KeyE') ? 1 : 0)

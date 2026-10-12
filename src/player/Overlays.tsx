@@ -14,10 +14,10 @@ export function PlayerOverlays({ id }: { id: string }) {
       {bubble && (
         <div
           key={bubble.nonce}
-          className="animate-bubble relative mb-1 w-max max-w-[220px] rounded-xl bg-[#0d0f14]/75 px-3 py-1.5 text-center font-serif text-[13px] leading-snug text-amber-50/90 shadow-[0_2px_12px_rgba(0,0,0,0.5)] backdrop-blur-[2px] break-words"
+          className="animate-bubble relative mb-1.5 w-max max-w-[230px] rounded-2xl bg-[#f4ede3] px-3.5 py-2 text-center text-[13.5px] font-medium leading-snug text-[#1c1612] shadow-[0_8px_24px_-8px_rgb(0_0_0/0.6)] break-words"
         >
           {bubble.value}
-          <span className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-[#0d0f14]/75" />
+          <span className="absolute -bottom-1 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 rounded-[2px] bg-[#f4ede3]" />
         </div>
       )}
     </>

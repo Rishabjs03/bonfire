@@ -2,12 +2,14 @@ import { WORLD } from '../config'
 import { PALETTE, type CharacterColors } from '../lib/palette'
 import { filterProfanity } from '../lib/profanity'
 import { EMOTES, type EmoteKind } from '../store/socialStore'
+import { isLookId, type LookId } from '../player/people'
 
 /** Presence metadata: who someone is, plus where they last came to rest. */
 export interface PresenceMeta {
   id: string
   name: string
   colors: CharacterColors
+  look: LookId
   joinedAt: number
   x: number
   z: number
@@ -85,6 +87,7 @@ export function parsePresence(p: unknown): PresenceMeta | null {
     id: p.id,
     name: typeof p.name === 'string' && cleanName(p.name) ? cleanName(p.name) : 'Wanderer',
     colors: { body, hat },
+    look: isLookId(p.look) ? p.look : 'alex',
     joinedAt: typeof p.joinedAt === 'number' && Number.isFinite(p.joinedAt) ? p.joinedAt : Date.now(),
     x: num(p.x, bound) ?? 0,
     z: num(p.z, bound) ?? 0,

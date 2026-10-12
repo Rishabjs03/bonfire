@@ -40,9 +40,11 @@ Without `.env.local` the site still runs; you'll just be alone at the fire.
 
 | | |
 | --- | --- |
-| WASD / arrows | walk (relative to the camera) · hold Shift to walk slowly |
-| drag / Q, E | look around |
-| stand still near the fire | sit down and warm up |
+| WASD / arrows | walk (relative to the camera) |
+| Shift + W | sprint |
+| two-finger swipe (trackpad) | look around; pinch to zoom. Mouse: drag to look, wheel to zoom. Q/E also turn |
+| stop by a log bench | sit down on it, facing the fire |
+| R (on a log, or by the radio) | the radio: internet radio stations, or paste a Spotify / YouTube link. Plays only for you |
 | Enter | chat (80 characters, a bubble for ~5 s) |
 | 1–4 | wave · warm hands · sleepy · heart |
 | M | mute (remembered) |
@@ -75,6 +77,17 @@ network rates, room cap) lives in [`src/config.ts`](src/config.ts).
 
 In development you can switch features off to profile, e.g.
 `http://localhost:5173/?off=flames,smoke,ao,trees,grass,terrain,farforest,rocks,post,audio`.
+
+## Music
+
+The radio by the fire plays on your machine only; nothing is broadcast to other players.
+
+- **Stations** come from the free, community-run [Radio Browser](https://www.radio-browser.info)
+  directory (no key needed). On an `https` site, browsers block `http`-only streams, so a few
+  stations won't play; pick another.
+- **Spotify / YouTube**: paste a link and it plays in their official embedded player.
+  Spotify plays full tracks when the listener is logged in to Spotify in that browser,
+  otherwise 30-second previews.
 
 ## Rebuilding the landscape
 
@@ -116,7 +129,9 @@ scripts/               build-terrain.mjs: bakes the real landscape from swisstop
 
 ## Credits
 
-Terrain and aerial imagery © swisstopo (swissALTI3D, SWISSIMAGE), plus
+Characters and animations are CC0 by [Quaternius](https://quaternius.com) (Universal Base
+Characters, Universal Animation Library). Terrain and aerial imagery © swisstopo
+(swissALTI3D, SWISSIMAGE), plus
 [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/); textures, models and the
 sky are CC0 from [Poly Haven](https://polyhaven.com). Details in
 [`public/assets/CREDITS.md`](public/assets/CREDITS.md).

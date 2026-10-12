@@ -11,6 +11,15 @@
 All of it is baked by [`scripts/build-terrain.mjs`](../../scripts/build-terrain.mjs): camp at
 46.00065° N, 7.74672° E (a meadow clearing below Riffelalp, 2,110 m), terrain out to 26 km.
 
+## People (Quaternius, CC0)
+
+| Asset | Source |
+| --- | --- |
+| `people/male.glb`, `people/female.glb`, `people/hair_*.glb`, `people/skin_*.jpg` | [Universal Base Characters](https://quaternius.itch.io/universal-base-characters) (Standard), textures resized |
+| `people/anims.glb` | [Universal Animation Library](https://opengameart.org/content/universal-animation-library) (Standard), clips subset; converted from FBX |
+
+Clothing is generated in code (`src/player/garments.ts`).
+
 ## Textures, models, sky (Poly Haven, CC0)
 
 | Asset | Source |

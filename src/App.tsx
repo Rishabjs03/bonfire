@@ -8,6 +8,7 @@ import { World } from './scene/World'
 import { useGameStore } from './store/gameStore'
 import { useQuality } from './store/quality'
 import { ChatInput } from './ui/ChatInput'
+import { EmbedPlayer, RadioPanel, RadioPrompt } from './ui/RadioPanel'
 import { FullScreen } from './ui/FullScreen'
 import { HUD } from './ui/HUD'
 import { JoinScreen } from './ui/JoinScreen'
@@ -59,14 +60,17 @@ export default function App() {
           <HUD />
           <OnlineCounter />
           <ChatInput />
+          <RadioPrompt />
+          <RadioPanel />
           {isTouchDevice && <TouchControls />}
         </>
       )}
       {phase === 'lobby' && <JoinScreen />}
       {phase === 'full' && <FullScreen />}
+      <EmbedPlayer />
       <MuteButton />
-      <p className="pointer-events-none absolute bottom-1.5 right-3 z-10 font-serif text-[10px] text-stone-300/40">
-        terrain &amp; aerial imagery © swisstopo
+      <p className="on-scene pointer-events-none absolute bottom-2 right-3 z-10 text-[10px] tracking-[0.02em] text-ink-faint">
+        Terrain &amp; imagery © swisstopo
       </p>
     </div>
   )

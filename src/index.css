@@ -1,7 +1,19 @@
 @import 'tailwindcss';
 
+/*
+ * Type: Instrument Serif for display moments (title, a few poetic lines),
+ * Instrument Sans for every piece of interface. One warm off-white ink,
+ * three opacities, one ember accent.
+ */
 @theme {
-  --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-display: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+  --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-ink: #f2ebe1;
+  --color-ink-muted: rgb(242 235 225 / 0.66);
+  --color-ink-faint: rgb(242 235 225 / 0.42);
+  --color-ember: #f2a35e;
+  --color-night: #120f0c;
 }
 
 html,
@@ -10,10 +22,14 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background: #05070d;
-  color: #f3e9dc;
+  background: #0d0f14;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: 'ss01', 'cv11';
   overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 canvas {
@@ -21,9 +37,66 @@ canvas {
   display: block;
 }
 
+/* Small uppercase labels: section headings, metadata. */
+.caption {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+/* Keycaps for shortcuts. */
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.45em;
+  height: 1.45em;
+  padding: 0 0.4em;
+  border-radius: 5px;
+  border: 1px solid rgb(242 235 225 / 0.22);
+  border-bottom-width: 2px;
+  background: rgb(18 15 12 / 0.45);
+  font: 500 10.5px/1 var(--font-sans);
+  letter-spacing: 0.02em;
+  color: var(--color-ink);
+}
+
+/* Glass panels over the scene. */
+.panel {
+  background: rgb(18 15 12 / 0.78);
+  border: 1px solid rgb(242 235 225 / 0.09);
+  box-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.65), inset 0 1px 0 rgb(255 255 255 / 0.04);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+}
+
+/* Text sitting directly on the 3D scene. */
+.on-scene {
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.55), 0 0 12px rgb(0 0 0 / 0.45);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A small living ember: presence indicator. */
+@keyframes ember {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgb(242 163 94 / 0.45); }
+  50% { opacity: 0.75; box-shadow: 0 0 0 5px rgb(242 163 94 / 0); }
+}
+.ember-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-ember);
+  animation: ember 2.4s ease-in-out infinite;
+}
+
 /* Speech bubbles: fade in, hold, drift up and fade out over 5s. */
 @keyframes bubble {
-  0% { opacity: 0; transform: translateY(6px) scale(0.96); }
+  0% { opacity: 0; transform: translateY(6px) scale(0.97); }
   6% { opacity: 1; transform: translateY(0) scale(1); }
   88% { opacity: 1; transform: translateY(0); }
   100% { opacity: 0; transform: translateY(-6px); }
@@ -39,6 +112,28 @@ canvas {
 }
 .animate-emote { animation: emote 2.6s ease-out forwards; display: inline-block; }
 
+/* Equalizer bars for "now playing". */
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+.eq span {
+  display: inline-block;
+  width: 2px;
+  height: 10px;
+  margin-right: 2px;
+  border-radius: 1px;
+  background: var(--color-ember);
+  transform-origin: bottom;
+  animation: eq 0.9s ease-in-out infinite;
+}
+.eq span:nth-child(2) { animation-delay: -0.3s; }
+.eq span:nth-child(3) { animation-delay: -0.6s; }
+
+input[type='range'] {
+  accent-color: var(--color-ember);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-bubble, .animate-emote { animation-duration: 0.01s; animation-fill-mode: both; }
+  .animate-bubble, .animate-emote, .ember-dot, .eq span { animation-duration: 0.01s; animation-iteration-count: 1; animation-fill-mode: both; }
 }

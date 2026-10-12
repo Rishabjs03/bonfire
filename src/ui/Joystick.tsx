@@ -37,7 +37,7 @@ export function TouchControls() {
   return (
     <>
       <div
-        className="absolute bottom-10 left-8 z-10 grid h-32 w-32 touch-none place-items-center rounded-full border border-amber-100/15 bg-black/20"
+        className="panel absolute bottom-10 left-8 z-10 grid h-32 w-32 touch-none place-items-center rounded-full"
         onPointerDown={(e) => {
           const r = e.currentTarget.getBoundingClientRect()
           origin.current = { x: r.left + r.width / 2, y: r.top + r.height / 2, id: e.pointerId }
@@ -51,7 +51,7 @@ export function TouchControls() {
         role="application"
       >
         <div
-          className="h-12 w-12 rounded-full bg-amber-50/25 shadow-[0_0_12px_rgba(0,0,0,0.4)]"
+          className="h-12 w-12 rounded-full bg-ink/80 shadow-[0_4px_14px_rgb(0_0_0/0.45)]"
           style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }}
         />
       </div>
@@ -63,7 +63,7 @@ export function TouchControls() {
               type="button"
               onClick={() => sendEmote(k)}
               aria-label={EMOTES[k].label}
-              className="grid h-10 w-10 place-items-center rounded-full bg-black/30 text-lg"
+              className="panel grid h-10 w-10 place-items-center rounded-full text-lg"
             >
               {EMOTES[k].icon}
             </button>
@@ -73,9 +73,11 @@ export function TouchControls() {
           type="button"
           onClick={() => setChatOpen(true)}
           aria-label="Chat"
-          className="grid h-12 w-12 place-items-center rounded-full bg-black/35 text-xl"
+          className="panel grid h-12 w-12 place-items-center rounded-full text-ink"
         >
-          💬
+          <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden>
+            <path d="M3 4.5h14v9H8l-4 3v-3H3z" />
+          </svg>
         </button>
       </div>
     </>
